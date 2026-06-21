@@ -27,6 +27,7 @@
     html, body {
       width: 100%;
       height: 100%;
+      min-height: 100dvh;
       margin: 0;
       overflow: hidden;
       background: var(--paper);
@@ -296,6 +297,8 @@
       color: var(--muted);
       font-size: 13px;
       font-weight: 850;
+      line-height: 1.35;
+      padding: 0 8px;
       text-align: center;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -375,6 +378,7 @@
       .dock {
         max-width: 100vw;
         overflow: hidden;
+        padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
       }
 
       .stage {
@@ -392,19 +396,27 @@
       }
 
       .topbar {
-        grid-template-columns: repeat(2, 128px);
-        justify-content: start;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        justify-content: stretch;
       }
 
       .status {
         grid-column: 1 / -1;
         order: 2;
+        min-height: 44px;
+        height: auto;
+        white-space: normal;
       }
 
       .main-button, .select-button, .icon-button {
         min-width: 0;
         width: 100%;
+        height: 46px;
         padding: 0 8px;
+      }
+
+      #directionButton {
+        font-size: 14px;
       }
 
       .quick-input {
@@ -421,6 +433,7 @@
 
       .history-controls {
         grid-template-columns: auto 1fr auto;
+        gap: 8px;
       }
     }
   </style>
@@ -560,7 +573,7 @@
       renderDirection();
       renderHistory();
       await detectDeepgram();
-      setStatus(deepgramAvailable ? '待機中: 高速認識可' : '待機中: ブラウザ音声認識');
+      setStatus(initialStatusText());
     }
 
     async function detectDeepgram() {
@@ -594,10 +607,12 @@
       const useDeepgram = (engine === 'deepgram' || engine === 'auto') && deepgramAvailable;
       try {
         clearActiveTurn();
+        setStatus(useDeepgram ? '高速認識を起動中...' : 'ブラウザ認識を起動中...');
+        prepareSpeechStart(useDeepgram);
+
         listening = true;
         startButton.classList.add('on');
         startButton.textContent = '停止';
-        setStatus(useDeepgram ? '高速認識を起動中...' : 'ブラウザ認識を起動中...');
 
         if (useDeepgram) {
           await startDeepgram();
@@ -653,11 +668,11 @@
 
     function startBrowserRecognition() {
       if (!SpeechRecognition) {
-        throw new Error('このブラウザは音声認識に未対応です。Chromeで開いてください。');
+        throw new Error(speechUnsupportedMessage());
       }
 
       recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      recognition.continuous = !isIOSDevice();
       recognition.interimResults = true;
       recognition.lang = lang(direction().source).speech;
 
@@ -671,7 +686,7 @@
       };
 
       recognition.onerror = (event) => {
-        setStatus(`音声認識エラー: ${event.error}`);
+        setStatus(speechErrorMessage(event.error));
       };
 
       recognition.onend = () => {
@@ -686,14 +701,70 @@
       setStatus(`聞き取り中: ${direction().label}`);
     }
 
+    function prepareSpeechStart(useDeepgram) {
+      if (!window.isSecureContext) {
+        throw new Error('マイクはHTTPSのURLで開いた時だけ使えます');
+      }
+
+      if (isIOSDevice() && isStandaloneMode() && !useDeepgram) {
+        throw new Error('iPhone/iPadはSafariタブで開いてください');
+      }
+
+      if (!useDeepgram && !SpeechRecognition) {
+        throw new Error(speechUnsupportedMessage());
+      }
+    }
+
+    function initialStatusText() {
+      if (isIOSDevice()) {
+        return deepgramAvailable ? 'iPhone/iPad: Safariで開始→許可' : 'iPhone/iPad: Safariで開始→マイク許可';
+      }
+      return deepgramAvailable ? '待機中: 高速認識可' : '待機中: ブラウザ音声認識';
+    }
+
+    function speechUnsupportedMessage() {
+      if (isIOSDevice()) return 'Safariタブで開いてください。ホーム画面版では音声認識できない場合があります';
+      return 'このブラウザは音声認識に未対応です。ChromeかSafariで開いてください';
+    }
+
+    function speechErrorMessage(errorCode) {
+      if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed') {
+        return 'マイクが拒否されています。設定でSafariのマイクを許可してください';
+      }
+      if (errorCode === 'no-speech') return '音声が聞き取れませんでした。もう一度話してください';
+      if (errorCode === 'network') return '音声認識の通信エラーです。通信状態を確認してください';
+      return `音声認識エラー: ${errorCode}`;
+    }
+
+    function microphoneErrorMessage(error) {
+      if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
+        return 'マイクが拒否されています。Safari/Chromeのマイク許可をONにしてください';
+      }
+      if (error?.name === 'NotFoundError') return 'マイクが見つかりません';
+      if (error?.name === 'NotReadableError') return 'マイクを他のアプリが使用中です';
+      return `マイク確認エラー: ${error?.message || 'unknown'}`;
+    }
+
+    function isIOSDevice() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
+    function isStandaloneMode() {
+      return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    }
+
     async function startDeepgram() {
-      inputStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
+      try {
+        inputStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      } catch (error) {
+        throw new Error(microphoneErrorMessage(error));
+      }
 
       inputStream.getTracks().forEach((track) => {
         track.onended = () => {

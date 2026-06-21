@@ -4,6 +4,9 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const required = [
   'SpeechRecognition',
   'translate.googleapis.com',
+  'prepareSpeechStart',
+  'speechUnsupportedMessage',
+  'isIOSDevice',
   'switchDirection',
   'toggleHistory',
   'saveHistorySnapshot',

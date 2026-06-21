@@ -28,6 +28,12 @@ vercel env add DEEPGRAM_API_KEY production
 vercel env add DEEPGRAM_API_KEY preview
 ```
 
+## iPhone / iPad
+
+本番URLはHTTPSなので、Safariで開いて `開始` を押すとマイク許可を出せます。
+iPhone/iPadではホーム画面に追加したWebアプリより、Safariの通常タブで開く方が音声認識が安定します。
+マイクが拒否された場合は、iOSの設定でSafariまたは使用中ブラウザのマイク許可をONにします。
+
 ## 確認
 
 ```bash

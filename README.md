@@ -22,6 +22,7 @@ npm run start
 
 Vercelに `DEEPGRAM_API_KEY` を設定すると、Deepgramのストリーミング認識を使います。
 未設定でもChromeのブラウザ音声認識と手入力翻訳で動作します。
+会話の精度を上げたい場合は、ブラウザ標準認識ではなく `DEEPGRAM_API_KEY` を入れた高速認識モードを使います。
 
 ```bash
 vercel env add DEEPGRAM_API_KEY production

@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f5ef">
+  <link rel="preconnect" href="https://translate.googleapis.com">
+  <link rel="preconnect" href="https://api.deepgram.com">
   <title>高速翻訳</title>
   <style>
     :root {
@@ -556,8 +558,8 @@
     let sourceNode = null;
     let inputStream = null;
     let activeTurn = null;
-    let currentAbort = null;
     let interimTimer = null;
+    let translationSeq = 0;
     let historyEnabled = false;
     let historyTimer = null;
     let historyMinutes = 1;
@@ -574,6 +576,7 @@
       renderHistory();
       await detectDeepgram();
       setStatus(initialStatusText());
+      setTimeout(warmTranslateConnection, 250);
     }
 
     async function detectDeepgram() {
@@ -672,9 +675,10 @@
       }
 
       recognition = new SpeechRecognition();
-      recognition.continuous = !isIOSDevice();
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = lang(direction().source).speech;
+      recognition.maxAlternatives = 1;
 
       recognition.onresult = (event) => {
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -694,7 +698,7 @@
         setTimeout(() => {
           if (!listening) return;
           startBrowserRecognition();
-        }, 120);
+        }, 30);
       };
 
       recognition.start();
@@ -782,6 +786,7 @@
         smart_format: 'true',
         punctuate: 'true',
         interim_results: 'true',
+        endpointing: '80',
         encoding: 'linear16',
         sample_rate: '16000',
         channels: '1'
@@ -837,6 +842,7 @@
       if (!activeTurn) {
         activeTurn = {
           startedAt,
+          lastInterimText: '',
           sourceEl: addBubble(sourceFeed, 'source', currentDirection.source),
           targetEl: addBubble(targetFeed, 'pending', currentDirection.target)
         };
@@ -854,19 +860,22 @@
 
       const targetEl = activeTurn.targetEl;
       interimTimer = setTimeout(() => {
+        if (!activeTurn || activeTurn.lastInterimText === text) return;
+        if (!shouldTranslateInterim(text, currentDirection.source)) return;
+        activeTurn.lastInterimText = text;
         translateInto(text, targetEl, startedAt, false);
-      }, 120);
+      }, 35);
     }
 
     async function translateInto(text, targetEl, startedAt, final) {
       if (!text.trim()) return;
 
-      if (currentAbort) currentAbort.abort();
-      currentAbort = new AbortController();
-
       const currentDirection = direction();
+      const requestId = ++translationSeq;
       try {
-        const translated = await translateText(text, currentDirection.source, currentDirection.target, currentAbort.signal);
+        const translated = await translateText(text, currentDirection.source, currentDirection.target);
+        if (requestId !== translationSeq) return;
+
         const ms = Math.round(performance.now() - startedAt);
         updateBubble(targetEl, translated);
         targetEl.classList.remove('pending');
@@ -887,6 +896,14 @@
         updateBubble(targetEl, '翻訳に失敗しました');
         setStatus(`翻訳エラー: ${error.message}`);
       }
+    }
+
+    function shouldTranslateInterim(text, sourceLang) {
+      const normalized = text.trim();
+      if (!normalized) return false;
+      if (sourceLang === 'ja') return [...normalized].length >= 4;
+      const words = normalized.split(/\s+/).filter(Boolean);
+      return words.length >= 2 || normalized.length >= 10;
     }
 
     async function translateText(text, sourceLang, targetLang, signal) {
@@ -950,6 +967,7 @@
       sourcePane.className = `pane ${source.pane}`;
       targetPane.className = `pane ${target.pane}`;
       resetEmptyText();
+      setTimeout(warmTranslateConnection, 50);
     }
 
     function clearFeeds() {
@@ -989,10 +1007,7 @@
     function clearActiveTurn(abort = true) {
       clearTimeout(interimTimer);
       interimTimer = null;
-      if (abort && currentAbort) {
-        currentAbort.abort();
-        currentAbort = null;
-      }
+      if (abort) translationSeq += 1;
       activeTurn = null;
     }
 
@@ -1124,6 +1139,11 @@
 
     function lang(id) {
       return LANGS[id];
+    }
+
+    function warmTranslateConnection() {
+      const current = direction();
+      translateText(current.source === 'ja' ? 'はい' : 'yes', current.source, current.target).catch(() => {});
     }
 
     function setStatus(message) {

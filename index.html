@@ -21,6 +21,26 @@
       --accent-dark: #aa2f22;
       --ok: #127a54;
       --shadow: 0 14px 38px rgba(32, 26, 12, 0.12);
+      --bubble-font: clamp(18px, 3vw, 36px);
+      --bubble-pad-y: 13px;
+      --bubble-pad-x: 15px;
+      --control-height: 48px;
+      --main-min: 112px;
+      --select-min: 112px;
+      --icon-min: 48px;
+      --button-font: 13px;
+      --status-font: 13px;
+      --manual-height: 48px;
+      --manual-font: 16px;
+      --pane-head-min: 58px;
+      --pane-head-pad-y: 12px;
+      --pane-head-pad-x: clamp(14px, 3vw, 24px);
+      --lang-font: clamp(19px, 2.7vw, 32px);
+      --feed-gap: 10px;
+      --feed-pad: clamp(12px, 2.5vw, 24px);
+      --dock-gap: 10px;
+      --dock-pad-y: 12px;
+      --dock-pad-x: clamp(12px, 2.5vw, 22px);
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
     }
 
@@ -84,17 +104,17 @@
     .pane.en { background: var(--en); }
 
     .pane-head {
-      min-height: 58px;
+      min-height: var(--pane-head-min);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 12px clamp(14px, 3vw, 24px);
+      padding: var(--pane-head-pad-y) var(--pane-head-pad-x);
       border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     }
 
     .lang-name {
-      font-size: clamp(19px, 2.7vw, 32px);
+      font-size: var(--lang-font);
       font-weight: 900;
       letter-spacing: 0;
     }
@@ -111,8 +131,8 @@
       overflow: auto;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      padding: clamp(12px, 2.5vw, 24px);
+      gap: var(--feed-gap);
+      padding: var(--feed-pad);
       scroll-behavior: smooth;
       -webkit-overflow-scrolling: touch;
     }
@@ -132,7 +152,7 @@
       border: 1px solid rgba(0, 0, 0, 0.08);
       background: rgba(255, 255, 255, 0.72);
       box-shadow: 0 6px 18px rgba(32, 26, 12, 0.07);
-      padding: 13px 15px;
+      padding: var(--bubble-pad-y) var(--bubble-pad-x);
       border-radius: 8px;
       word-break: break-word;
     }
@@ -146,7 +166,7 @@
     }
 
     .bubble-text {
-      font-size: clamp(18px, 3vw, 36px);
+      font-size: var(--bubble-font);
       line-height: 1.36;
       font-weight: 850;
       letter-spacing: 0;
@@ -237,26 +257,27 @@
     .dock {
       background: var(--panel);
       box-shadow: var(--shadow);
-      padding: 12px clamp(12px, 2.5vw, 22px) calc(12px + env(safe-area-inset-bottom));
+      padding: var(--dock-pad-y) var(--dock-pad-x) calc(var(--dock-pad-y) + env(safe-area-inset-bottom));
       display: grid;
-      gap: 10px;
+      gap: var(--dock-gap);
     }
 
     .topbar {
       display: grid;
-      grid-template-columns: auto auto auto auto 1fr auto;
+      grid-template-columns: auto auto auto auto auto 1fr auto;
       gap: 8px;
       align-items: center;
     }
 
     .main-button {
-      min-width: 112px;
-      min-height: 48px;
+      min-width: var(--main-min);
+      min-height: var(--control-height);
       border: 0;
       border-radius: 8px;
       background: var(--accent);
       color: #fff;
       cursor: pointer;
+      font-size: var(--button-font);
       font-weight: 900;
       padding: 0 18px;
     }
@@ -266,20 +287,60 @@
     }
 
     .icon-button, .select-button {
-      min-width: 48px;
-      height: 48px;
+      min-width: var(--icon-min);
+      height: var(--control-height);
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #fff;
       color: var(--ink);
       cursor: pointer;
+      font-size: var(--button-font);
       font-weight: 900;
       padding: 0 12px;
     }
 
     .select-button {
-      min-width: 112px;
+      min-width: var(--select-min);
       color: #29251f;
+    }
+
+    .scale-controls {
+      height: var(--control-height);
+      min-width: 120px;
+      display: grid;
+      grid-template-columns: 34px 1fr 34px;
+      align-items: center;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .scale-button {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      font-size: var(--button-font);
+      font-weight: 900;
+    }
+
+    .scale-button:first-child {
+      border-right: 1px solid var(--line);
+    }
+
+    .scale-button:last-child {
+      border-left: 1px solid var(--line);
+    }
+
+    .scale-label {
+      color: var(--muted);
+      font-size: var(--status-font);
+      font-weight: 900;
+      text-align: center;
+      white-space: nowrap;
     }
 
     .history-button.on {
@@ -289,7 +350,7 @@
 
     .status {
       min-width: 0;
-      height: 48px;
+      height: var(--control-height);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -297,7 +358,7 @@
       border: 0;
       background: transparent;
       color: var(--muted);
-      font-size: 13px;
+      font-size: var(--status-font);
       font-weight: 850;
       line-height: 1.35;
       padding: 0 8px;
@@ -317,7 +378,7 @@
     }
 
     textarea {
-      min-height: 48px;
+      min-height: var(--manual-height);
       max-height: 110px;
       resize: vertical;
       border: 1px solid var(--line);
@@ -325,7 +386,7 @@
       padding: 12px 14px;
       background: #fff;
       color: var(--ink);
-      font-size: 16px;
+      font-size: var(--manual-font);
       line-height: 1.4;
     }
 
@@ -336,6 +397,7 @@
       background: #22201c;
       color: #fff;
       cursor: pointer;
+      font-size: var(--button-font);
       font-weight: 900;
       padding: 0 14px;
     }
@@ -346,7 +408,7 @@
       gap: 10px;
       align-items: center;
       color: var(--muted);
-      font-size: 13px;
+      font-size: var(--status-font);
       font-weight: 850;
     }
 
@@ -380,7 +442,7 @@
       .dock {
         max-width: 100vw;
         overflow: hidden;
-        padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+        padding: var(--dock-pad-y) var(--dock-pad-x) calc(var(--dock-pad-y) + env(safe-area-inset-bottom));
       }
 
       .stage {
@@ -398,35 +460,70 @@
       }
 
       .topbar {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr 1.55fr 0.9fr auto auto;
+        gap: 5px;
         justify-content: stretch;
+      }
+
+      #engineButton {
+        display: none;
       }
 
       .status {
         grid-column: 1 / -1;
-        order: 2;
-        min-height: 44px;
+        order: 3;
+        min-height: 22px;
         height: auto;
+        padding: 0 2px;
         white-space: normal;
       }
 
       .main-button, .select-button, .icon-button {
         min-width: 0;
         width: 100%;
-        height: 46px;
-        padding: 0 8px;
+        height: var(--control-height);
+        padding: 0 5px;
+        border-radius: 6px;
       }
 
       #directionButton {
-        font-size: 14px;
+        font-size: var(--button-font);
+      }
+
+      #clearButton {
+        width: var(--control-height);
+        font-size: 0;
+      }
+
+      #clearButton::after {
+        content: "×";
+        font-size: var(--button-font);
+      }
+
+      .scale-controls {
+        min-width: 78px;
+        grid-template-columns: 23px 32px 23px;
+        border-radius: 6px;
       }
 
       .quick-input {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) 56px;
+        gap: 5px;
       }
 
       .send-button {
-        min-height: 44px;
+        min-width: 0;
+        min-height: var(--manual-height);
+        border-radius: 6px;
+        padding: 0 8px;
+      }
+
+      textarea {
+        min-height: var(--manual-height);
+        max-height: 72px;
+        resize: none;
+        border-radius: 6px;
+        padding: 6px 8px;
       }
 
       .lang-sub {
@@ -435,7 +532,7 @@
 
       .history-controls {
         grid-template-columns: auto 1fr auto;
-        gap: 8px;
+        gap: 6px;
       }
     }
   </style>
@@ -481,8 +578,13 @@
       <button class="select-button" id="engineButton" type="button" onclick="switchEngine()" title="音声認識エンジン">標準</button>
       <button class="select-button" id="directionButton" type="button" onclick="switchDirection()" title="翻訳方向">日本語→英語</button>
       <button class="select-button history-button" id="historyButton" type="button" onclick="toggleHistory()" title="履歴">履歴</button>
+      <div class="scale-controls" aria-label="表示サイズ">
+        <button class="scale-button" type="button" onclick="changeDisplayScale(-5)" title="表示を小さく">−</button>
+        <span class="scale-label" id="scaleLabel">80%</span>
+        <button class="scale-button" type="button" onclick="changeDisplayScale(5)" title="表示を大きく">＋</button>
+      </div>
       <div class="status" id="status">待機中</div>
-      <button class="icon-button" type="button" onclick="clearFeeds()" title="画面を消去">消去</button>
+      <button class="icon-button" id="clearButton" type="button" onclick="clearFeeds()" title="画面を消去">消去</button>
     </div>
     <div class="quick-input">
       <textarea id="manualText" rows="1" placeholder="日本語を入れてEnter"></textarea>
@@ -545,6 +647,8 @@
     const historyIntervalLabel = document.getElementById('historyIntervalLabel');
     const historyList = document.getElementById('historyList');
     const manualText = document.getElementById('manualText');
+    const scaleLabel = document.getElementById('scaleLabel');
+    const mobileQuery = window.matchMedia('(max-width: 720px)');
     const translationCache = new Map();
 
     let directionIndex = 0;
@@ -566,12 +670,15 @@
     let lastHistoryTurnIndex = 0;
     let conversationTurns = [];
     let historySnapshots = [];
+    let displayScale = 100;
     const targetRenderState = new WeakMap();
 
     init();
 
     async function init() {
+      loadDisplayScale();
       bindManualInput();
+      bindDisplayScaleWatcher();
       loadHistory();
       renderDirection();
       renderHistory();
@@ -960,6 +1067,120 @@
       });
     }
 
+    function bindDisplayScaleWatcher() {
+      const refresh = () => applyDisplayScale(false);
+      if (mobileQuery.addEventListener) {
+        mobileQuery.addEventListener('change', refresh);
+      } else if (mobileQuery.addListener) {
+        mobileQuery.addListener(refresh);
+      }
+    }
+
+    function loadDisplayScale() {
+      let saved = null;
+      try {
+        saved = Number(localStorage.getItem('kosokuTranslatorScale'));
+      } catch {}
+      displayScale = clampNumber(Number.isFinite(saved) && saved > 0 ? saved : defaultDisplayScale(), 70, 110);
+      applyDisplayScale(false);
+    }
+
+    function defaultDisplayScale() {
+      return mobileQuery.matches ? 80 : 100;
+    }
+
+    function changeDisplayScale(delta) {
+      displayScale = clampNumber(displayScale + delta, 70, 110);
+      applyDisplayScale(true);
+      try {
+        localStorage.setItem('kosokuTranslatorScale', String(displayScale));
+      } catch {}
+    }
+
+    function applyDisplayScale(showStatus) {
+      const root = document.documentElement;
+      const ratio = displayScale / 100;
+      const mobile = mobileQuery.matches;
+      const base = mobile
+        ? {
+            controlHeight: 34,
+            mainMin: 54,
+            selectMin: 66,
+            iconMin: 34,
+            buttonFont: 11.5,
+            statusFont: 10.5,
+            manualHeight: 32,
+            manualFont: 12,
+            bubbleMin: 16,
+            bubbleVw: 5.2,
+            bubbleMax: 27,
+            bubblePadY: 7,
+            bubblePadX: 8,
+            paneHeadMin: 36,
+            paneHeadPadY: 6,
+            paneHeadPadX: 9,
+            langMin: 18,
+            langVw: 5,
+            langMax: 24,
+            feedGap: 6,
+            feedPad: 8,
+            dockGap: 5,
+            dockPadY: 6,
+            dockPadX: 6
+          }
+        : {
+            controlHeight: 48,
+            mainMin: 112,
+            selectMin: 112,
+            iconMin: 48,
+            buttonFont: 13,
+            statusFont: 13,
+            manualHeight: 48,
+            manualFont: 16,
+            bubbleMin: 18,
+            bubbleVw: 3,
+            bubbleMax: 36,
+            bubblePadY: 13,
+            bubblePadX: 15,
+            paneHeadMin: 58,
+            paneHeadPadY: 12,
+            paneHeadPadX: 18,
+            langMin: 19,
+            langVw: 2.7,
+            langMax: 32,
+            feedGap: 10,
+            feedPad: 18,
+            dockGap: 10,
+            dockPadY: 12,
+            dockPadX: 18
+          };
+
+      const px = (value) => `${Math.max(1, Math.round(value * ratio))}px`;
+      const fixed = (value) => Number((value * ratio).toFixed(2));
+      root.style.setProperty('--control-height', px(base.controlHeight));
+      root.style.setProperty('--main-min', px(base.mainMin));
+      root.style.setProperty('--select-min', px(base.selectMin));
+      root.style.setProperty('--icon-min', px(base.iconMin));
+      root.style.setProperty('--button-font', px(base.buttonFont));
+      root.style.setProperty('--status-font', px(base.statusFont));
+      root.style.setProperty('--manual-height', px(base.manualHeight));
+      root.style.setProperty('--manual-font', px(base.manualFont));
+      root.style.setProperty('--bubble-font', `clamp(${fixed(base.bubbleMin)}px, ${fixed(base.bubbleVw)}vw, ${fixed(base.bubbleMax)}px)`);
+      root.style.setProperty('--bubble-pad-y', px(base.bubblePadY));
+      root.style.setProperty('--bubble-pad-x', px(base.bubblePadX));
+      root.style.setProperty('--pane-head-min', px(base.paneHeadMin));
+      root.style.setProperty('--pane-head-pad-y', px(base.paneHeadPadY));
+      root.style.setProperty('--pane-head-pad-x', mobile ? px(base.paneHeadPadX) : `clamp(${px(14)}, ${fixed(3)}vw, ${px(24)})`);
+      root.style.setProperty('--lang-font', `clamp(${fixed(base.langMin)}px, ${fixed(base.langVw)}vw, ${fixed(base.langMax)}px)`);
+      root.style.setProperty('--feed-gap', px(base.feedGap));
+      root.style.setProperty('--feed-pad', mobile ? px(base.feedPad) : `clamp(${px(12)}, ${fixed(2.5)}vw, ${px(24)})`);
+      root.style.setProperty('--dock-gap', px(base.dockGap));
+      root.style.setProperty('--dock-pad-y', px(base.dockPadY));
+      root.style.setProperty('--dock-pad-x', mobile ? px(base.dockPadX) : `clamp(${px(12)}, ${fixed(2.5)}vw, ${px(22)})`);
+      scaleLabel.textContent = `${displayScale}%`;
+      if (showStatus) setStatus(`表示サイズ: ${displayScale}%`);
+    }
+
     function switchDirection() {
       if (listening) stopListening('翻訳方向を切り替えました');
       directionIndex = (directionIndex + 1) % DIRECTIONS.length;
@@ -1225,6 +1446,10 @@
 
     function lang(id) {
       return LANGS[id];
+    }
+
+    function clampNumber(value, min, max) {
+      return Math.min(max, Math.max(min, value));
     }
 
     function warmTranslateConnection() {

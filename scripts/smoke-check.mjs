@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const tokenApi = readFileSync(new URL('../api/token.js', import.meta.url), 'utf8');
+const source = `${html}\n${tokenApi}`;
 const required = [
   'SpeechRecognition',
   'translate.googleapis.com',
@@ -10,13 +12,16 @@ const required = [
   'switchDirection',
   'toggleHistory',
   'saveHistorySnapshot',
+  'changeDisplayScale',
+  'scaleLabel',
   'startBrowserRecognition',
   'startDeepgram',
+  'auth/grant',
   '日本語',
   'English'
 ];
 
-const missing = required.filter((item) => !html.includes(item));
+const missing = required.filter((item) => !source.includes(item));
 
 if (missing.length) {
   console.error(`Missing expected strings: ${missing.join(', ')}`);

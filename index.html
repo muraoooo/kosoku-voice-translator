@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f5ef">
+  <title>高速日英翻訳</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f5ef;
+      --ink: #181817;
+      --muted: #6e6a60;
+      --line: #ddd8cc;
+      --ja: #fff8df;
+      --en: #eaf7f5;
+      --accent: #e24b35;
+      --accent-dark: #aa2f22;
+      --ok: #127a54;
+      --shadow: 0 14px 38px rgba(32, 26, 12, 0.12);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: 1fr auto;
+    }
+
+    button, textarea, select {
+      font: inherit;
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stage.stack {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+
+    .pane {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+      border-right: 1px solid var(--line);
+    }
+
+    .stage.stack .pane {
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stage.stack .pane:first-child {
+      transform: rotate(180deg);
+    }
+
+    .stage.stack .pane:first-child .feed {
+      flex-direction: column-reverse;
+    }
+
+    .pane:last-child {
+      border-right: 0;
+      border-bottom: 0;
+    }
+
+    .pane.ja { background: var(--ja); }
+    .pane.en { background: var(--en); }
+
+    .pane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px clamp(14px, 3vw, 24px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      min-height: 54px;
+    }
+
+    .lang-name {
+      font-size: clamp(18px, 2.7vw, 32px);
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .lang-sub {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .feed {
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: clamp(12px, 2.6vw, 24px);
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .empty {
+      margin: auto;
+      color: rgba(24, 24, 23, 0.34);
+      font-size: clamp(16px, 2.1vw, 24px);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .bubble {
+      width: min(100%, 920px);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      background: rgba(255, 255, 255, 0.66);
+      box-shadow: 0 6px 18px rgba(32, 26, 12, 0.07);
+      padding: 12px 14px;
+      border-radius: 8px;
+      word-break: break-word;
+    }
+
+    .bubble.source {
+      border-left: 5px solid var(--accent);
+    }
+
+    .bubble.pending {
+      opacity: 0.74;
+    }
+
+    .bubble-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .bubble-text {
+      font-size: clamp(18px, 3vw, 36px);
+      line-height: 1.36;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .dock {
+      background: #fbfaf6;
+      box-shadow: var(--shadow);
+      padding: 12px clamp(12px, 2.5vw, 22px) calc(12px + env(safe-area-inset-bottom));
+      display: grid;
+      gap: 10px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: auto auto 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .main-button {
+      min-width: 112px;
+      min-height: 48px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 900;
+      cursor: pointer;
+      padding: 0 18px;
+    }
+
+    .main-button.on {
+      background: var(--accent-dark);
+    }
+
+    .icon-button, .select-button {
+      min-width: 48px;
+      height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 900;
+      padding: 0 12px;
+    }
+
+    .select-button {
+      min-width: 108px;
+      color: #29251f;
+    }
+
+    .status {
+      min-width: 0;
+      height: 48px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .status strong {
+      color: var(--ok);
+    }
+
+    .quick-input {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+
+    textarea {
+      min-height: 48px;
+      max-height: 110px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    .send-button {
+      min-width: 82px;
+      border: 0;
+      border-radius: 8px;
+      background: #22201c;
+      color: #fff;
+      font-weight: 900;
+      cursor: pointer;
+      padding: 0 14px;
+    }
+
+    @media (max-width: 720px) {
+      .stage {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+
+      .pane {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .topbar {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        justify-content: stretch;
+      }
+
+      .status {
+        grid-column: 1 / 3;
+        order: 2;
+      }
+
+      .icon-button[title="対面レイアウト"] {
+        order: 0;
+      }
+
+      .icon-button[title="履歴を消去"] {
+        order: 2;
+      }
+
+      .main-button {
+        min-width: 0;
+        width: 100%;
+        padding: 0 8px;
+      }
+
+      .select-button {
+        min-width: 0;
+        width: 100%;
+        padding: 0 8px;
+      }
+
+      .icon-button {
+        min-width: 0;
+        width: 100%;
+        padding: 0 6px;
+      }
+
+      .lang-sub {
+        display: none;
+      }
+
+      .empty {
+        max-width: 82%;
+        line-height: 1.35;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage">
+    <section class="pane ja" aria-label="Japanese pane">
+      <header class="pane-head">
+        <div class="lang-name">日本語</div>
+        <div class="lang-sub" id="jaMode">話すと英語へ</div>
+      </header>
+      <div class="feed" id="jaFeed">
+        <div class="empty">日本語で話すと、英語に変換します</div>
+      </div>
+    </section>
+
+    <section class="pane en" aria-label="English pane">
+      <header class="pane-head">
+        <div class="lang-name">English</div>
+        <div class="lang-sub" id="enMode">Speak to Japanese</div>
+      </header>
+      <div class="feed" id="enFeed">
+        <div class="empty">Speak English and it returns Japanese</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="dock">
+    <div class="topbar">
+      <button class="main-button" id="startButton" type="button" onclick="toggleListening()">開始</button>
+      <button class="select-button" id="engineButton" type="button" onclick="switchEngine()" title="音声認識エンジン">自動</button>
+      <button class="status" id="status" type="button" onclick="cycleHint()">待機中</button>
+      <button class="icon-button" type="button" onclick="toggleLayout()" title="対面レイアウト">上下</button>
+      <button class="icon-button" type="button" onclick="clearFeeds()" title="履歴を消去">消去</button>
+    </div>
+    <div class="quick-input">
+      <textarea id="manualText" rows="1" placeholder="ここに日本語またはEnglishを入れてEnter"></textarea>
+      <button class="send-button" type="button" onclick="sendManual()">翻訳</button>
+    </div>
+  </footer>
+
+  <script>
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const feeds = {
+      ja: document.getElementById('jaFeed'),
+      en: document.getElementById('enFeed')
+    };
+    const statusEl = document.getElementById('status');
+    const startButton = document.getElementById('startButton');
+    const engineButton = document.getElementById('engineButton');
+    const manualText = document.getElementById('manualText');
+    const translationCache = new Map();
+
+    let listening = false;
+    let engine = 'auto';
+    let deepgramAvailable = false;
+    let recognition = null;
+    let socket = null;
+    let audioCtx = null;
+    let processor = null;
+    let sourceNode = null;
+    let inputStream = null;
+    let activeTurn = null;
+    let currentAbort = null;
+    let interimTimer = null;
+    let hint = 'auto';
+    let lastBrowserLang = 'ja-JP';
+
+    init();
+
+    async function init() {
+      bindManualInput();
+      await detectDeepgram();
+      setStatus(deepgramAvailable ? '待機中: Deepgram高速モード可' : '待機中: ブラウザ音声認識');
+    }
+
+    async function detectDeepgram() {
+      try {
+        const res = await fetch('/api/token', { method: 'POST' });
+        const data = await res.json();
+        deepgramAvailable = Boolean(data.available && data.key);
+      } catch {
+        deepgramAvailable = false;
+      }
+      renderEngine();
+    }
+
+    function renderEngine() {
+      if (engine === 'auto') {
+        engineButton.textContent = deepgramAvailable ? '高速' : '標準';
+        return;
+      }
+      engineButton.textContent = engine === 'deepgram' ? '高速' : '標準';
+    }
+
+    async function toggleListening() {
+      if (listening) {
+        stopListening('停止しました');
+        return;
+      }
+      await startListening();
+    }
+
+    async function startListening() {
+      const useDeepgram = (engine === 'deepgram' || engine === 'auto') && deepgramAvailable;
+      try {
+        clearActiveTurn();
+        listening = true;
+        startButton.classList.add('on');
+        startButton.textContent = '停止';
+        setStatus(useDeepgram ? '高速認識を起動中...' : 'ブラウザ認識を起動中...');
+
+        if (useDeepgram) {
+          await startDeepgram();
+        } else {
+          startBrowserRecognition();
+        }
+      } catch (error) {
+        stopListening(`エラー: ${error.message}`);
+      }
+    }
+
+    function stopListening(message = '待機中') {
+      listening = false;
+      startButton.classList.remove('on');
+      startButton.textContent = '開始';
+      clearActiveTurn();
+
+      if (recognition) {
+        recognition.onend = null;
+        recognition.onerror = null;
+        recognition.onresult = null;
+        try { recognition.stop(); } catch {}
+        recognition = null;
+      }
+
+      if (socket) {
+        try {
+          if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'CloseStream' }));
+          socket.close();
+        } catch {}
+        socket = null;
+      }
+
+      if (processor) {
+        processor.disconnect();
+        processor = null;
+      }
+      if (sourceNode) {
+        sourceNode.disconnect();
+        sourceNode = null;
+      }
+      if (audioCtx) {
+        audioCtx.close();
+        audioCtx = null;
+      }
+      if (inputStream) {
+        inputStream.getTracks().forEach((track) => track.stop());
+        inputStream = null;
+      }
+
+      setStatus(message);
+    }
+
+    function startBrowserRecognition() {
+      if (!SpeechRecognition) {
+        throw new Error('このブラウザは音声認識に未対応です。Chromeで開いてください。');
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = hint === 'en' ? 'en-US' : hint === 'ja' ? 'ja-JP' : lastBrowserLang;
+
+      recognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const result = event.results[i];
+          const text = result[0]?.transcript?.trim();
+          if (!text) continue;
+          handleTranscript(text, result.isFinal);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        setStatus(`音声認識エラー: ${event.error}`);
+      };
+
+      recognition.onend = () => {
+        if (!listening) return;
+        setTimeout(() => {
+          if (!listening) return;
+          startBrowserRecognition();
+        }, 120);
+      };
+
+      recognition.start();
+      setStatus(`聞き取り中: ${hintLabel()}`);
+    }
+
+    async function startDeepgram() {
+      inputStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      inputStream.getTracks().forEach((track) => {
+        track.onended = () => {
+          if (listening) stopListening('マイク入力が終了しました');
+        };
+      });
+
+      const tokenRes = await fetch('/api/token', { method: 'POST' });
+      const tokenData = await tokenRes.json();
+      if (!tokenData.key) throw new Error('Deepgramキーが取得できませんでした');
+
+      const params = new URLSearchParams({
+        model: 'nova-3',
+        smart_format: 'true',
+        punctuate: 'true',
+        interim_results: 'true',
+        encoding: 'linear16',
+        sample_rate: '16000',
+        channels: '1',
+        detect_language: hint === 'auto' ? 'true' : 'false'
+      });
+
+      if (hint === 'ja') params.set('language', 'ja');
+      if (hint === 'en') params.set('language', 'en');
+
+      socket = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`, ['token', tokenData.key]);
+
+      socket.onopen = () => {
+        startAudioPipe();
+        setStatus(`高速聞き取り中: ${hintLabel()}`);
+      };
+
+      socket.onmessage = async (event) => {
+        const raw = event.data instanceof Blob ? await event.data.text() : event.data;
+        const data = JSON.parse(raw);
+        const text = data.channel?.alternatives?.[0]?.transcript?.trim();
+        if (!text || data.type !== 'Results') return;
+        const language = normalizeDeepgramLang(data.channel?.detected_language || data.channel?.alternatives?.[0]?.languages?.[0]?.language);
+        handleTranscript(text, Boolean(data.is_final || data.speech_final), language);
+      };
+
+      socket.onclose = (event) => {
+        if (listening) stopListening(`高速認識が切断されました (${event.code})`);
+      };
+
+      socket.onerror = () => {
+        if (listening) setStatus('高速認識エラー');
+      };
+    }
+
+    function startAudioPipe() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      sourceNode = audioCtx.createMediaStreamSource(inputStream);
+      processor = audioCtx.createScriptProcessor(2048, 1, 1);
+
+      processor.onaudioprocess = (event) => {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        const f32 = event.inputBuffer.getChannelData(0);
+        const i16 = new Int16Array(f32.length);
+        for (let i = 0; i < f32.length; i += 1) {
+          i16[i] = Math.max(-32768, Math.min(32767, f32[i] * 32768));
+        }
+        socket.send(i16.buffer);
+      };
+
+      sourceNode.connect(processor);
+      processor.connect(audioCtx.destination);
+    }
+
+    function handleTranscript(text, isFinal, forcedLang) {
+      const sourceLang = forcedLang || detectLang(text);
+      const targetLang = sourceLang === 'ja' ? 'en' : 'ja';
+      const sourceFeed = feeds[sourceLang];
+      const targetFeed = feeds[targetLang];
+      const startedAt = activeTurn?.startedAt || performance.now();
+
+      lastBrowserLang = sourceLang === 'ja' ? 'ja-JP' : 'en-US';
+
+      if (!activeTurn || activeTurn.sourceLang !== sourceLang) {
+        clearActiveTurn(false);
+        activeTurn = {
+          sourceLang,
+          targetLang,
+          startedAt,
+          sourceEl: addBubble(sourceFeed, 'source', sourceLang, isFinal ? '原文' : '聞き取り中'),
+          targetEl: addBubble(targetFeed, 'pending', targetLang, '翻訳中')
+        };
+      }
+
+      updateBubble(activeTurn.sourceEl, text, isFinal ? '原文' : '聞き取り中');
+
+      const doNow = isFinal;
+      clearTimeout(interimTimer);
+      if (doNow) {
+        translateInto(text, sourceLang, targetLang, activeTurn.targetEl, startedAt, true);
+        activeTurn = null;
+      } else {
+        const targetEl = activeTurn.targetEl;
+        interimTimer = setTimeout(() => {
+          translateInto(text, sourceLang, targetLang, targetEl, startedAt, false);
+        }, 140);
+      }
+    }
+
+    async function translateInto(text, sourceLang, targetLang, targetEl, startedAt, final) {
+      if (!text.trim()) return;
+
+      if (currentAbort) currentAbort.abort();
+      currentAbort = new AbortController();
+
+      try {
+        const translated = await translateText(text, sourceLang, targetLang, currentAbort.signal);
+        const ms = Math.round(performance.now() - startedAt);
+        updateBubble(targetEl, translated, final ? `${ms}ms` : `即時 ${ms}ms`);
+        targetEl.classList.remove('pending');
+        scrollToEdge(feeds[targetLang]);
+        setStatus(`<strong>${ms}ms</strong> で翻訳: ${sourceLang.toUpperCase()} -> ${targetLang.toUpperCase()}`);
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        updateBubble(targetEl, '翻訳に失敗しました', 'error');
+        setStatus(`翻訳エラー: ${error.message}`);
+      }
+    }
+
+    async function translateText(text, sourceLang, targetLang, signal) {
+      const key = `${sourceLang}:${targetLang}:${text}`;
+      if (translationCache.has(key)) return translationCache.get(key);
+
+      const url = new URL('https://translate.googleapis.com/translate_a/single');
+      url.searchParams.set('client', 'gtx');
+      url.searchParams.set('sl', sourceLang);
+      url.searchParams.set('tl', targetLang);
+      url.searchParams.set('dt', 't');
+      url.searchParams.set('q', text);
+
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const translated = json?.[0]?.map((part) => part?.[0]).filter(Boolean).join('').trim();
+      const value = translated || '(翻訳なし)';
+      translationCache.set(key, value);
+      return value;
+    }
+
+    function sendManual() {
+      const text = manualText.value.trim();
+      if (!text) return;
+      manualText.value = '';
+      handleTranscript(text, true);
+    }
+
+    function bindManualInput() {
+      manualText.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' || event.shiftKey) return;
+        event.preventDefault();
+        sendManual();
+      });
+    }
+
+    function detectLang(text) {
+      if (hint === 'ja') return 'ja';
+      if (hint === 'en') return 'en';
+
+      const jaChars = (text.match(/[\u3040-\u30ff\u3400-\u9fff]/g) || []).length;
+      const enWords = (text.match(/[A-Za-z][A-Za-z'-]*/g) || []).length;
+      if (jaChars === 0 && enWords > 0) return 'en';
+      if (jaChars >= Math.max(2, enWords)) return 'ja';
+      return enWords > jaChars ? 'en' : 'ja';
+    }
+
+    function normalizeDeepgramLang(value) {
+      if (!value) return '';
+      const lang = String(value).toLowerCase();
+      if (lang.startsWith('ja')) return 'ja';
+      if (lang.startsWith('en')) return 'en';
+      return '';
+    }
+
+    function addBubble(feed, stateClass, lang, meta) {
+      removeEmpty(feed);
+      const bubble = document.createElement('article');
+      bubble.className = `bubble ${stateClass || ''}`;
+      bubble.lang = lang === 'ja' ? 'ja' : 'en';
+      bubble.innerHTML = `
+        <div class="bubble-meta">
+          <span>${lang === 'ja' ? 'Japanese' : 'English'}</span>
+          <span>${meta}</span>
+        </div>
+        <div class="bubble-text"></div>
+      `;
+      feed.appendChild(bubble);
+      scrollToEdge(feed);
+      return bubble;
+    }
+
+    function updateBubble(bubble, text, meta) {
+      if (!bubble) return;
+      bubble.querySelector('.bubble-text').textContent = text;
+      bubble.querySelector('.bubble-meta span:last-child').textContent = meta;
+    }
+
+    function removeEmpty(feed) {
+      const empty = feed.querySelector('.empty');
+      if (empty) empty.remove();
+    }
+
+    function clearFeeds() {
+      feeds.ja.innerHTML = '<div class="empty">日本語で話すと、英語に変換します</div>';
+      feeds.en.innerHTML = '<div class="empty">Speak English and it returns Japanese</div>';
+      clearActiveTurn();
+      setStatus('履歴を消しました');
+    }
+
+    function clearActiveTurn(abort = true) {
+      clearTimeout(interimTimer);
+      interimTimer = null;
+      if (abort && currentAbort) {
+        currentAbort.abort();
+        currentAbort = null;
+      }
+      activeTurn = null;
+    }
+
+    function scrollToEdge(feed) {
+      const stack = document.getElementById('stage').classList.contains('stack');
+      if (stack && feed === feeds.ja) {
+        feed.scrollTop = 0;
+      } else {
+        feed.scrollTop = feed.scrollHeight;
+      }
+    }
+
+    function switchEngine() {
+      if (listening) stopListening('エンジンを切り替えました');
+      if (engine === 'auto') {
+        engine = deepgramAvailable ? 'deepgram' : 'browser';
+      } else if (engine === 'deepgram') {
+        engine = 'browser';
+      } else {
+        engine = 'auto';
+      }
+      renderEngine();
+      setStatus(engine === 'browser' ? '標準モード: ブラウザ音声認識' : deepgramAvailable ? '高速モード: Deepgram' : '自動モード: 標準で待機');
+    }
+
+    function cycleHint() {
+      hint = hint === 'auto' ? 'ja' : hint === 'ja' ? 'en' : 'auto';
+      setStatus(`聞き取りヒント: ${hintLabel()}`);
+    }
+
+    function hintLabel() {
+      if (hint === 'ja') return '日本語優先';
+      if (hint === 'en') return 'English first';
+      return '自動判定';
+    }
+
+    function toggleLayout() {
+      document.getElementById('stage').classList.toggle('stack');
+      setStatus('レイアウトを切り替えました');
+    }
+
+    function setStatus(message) {
+      statusEl.innerHTML = message;
+    }
+  </script>
+</body>
+</html>

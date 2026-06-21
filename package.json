@@ -1,0 +1,17 @@
+{
+  "name": "kosoku-voice-translator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ultra-fast Japanese and English voice translator for Vercel.",
+  "scripts": {
+    "start": "vercel dev --listen 8765",
+    "serve": "npx serve . -l 8765",
+    "check": "node scripts/smoke-check.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}

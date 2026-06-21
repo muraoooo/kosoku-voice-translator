@@ -470,7 +470,7 @@
         <button class="history-save" type="button" onclick="saveHistorySnapshot(true)">今保存</button>
       </header>
       <div class="history-list" id="historyList">
-        <div class="history-empty">履歴をONにすると、指定した間隔で会話を残します</div>
+        <div class="history-empty">履歴をONにすると、日本語だけ指定した間隔で残します</div>
       </div>
     </aside>
   </div>
@@ -559,13 +559,14 @@
     let inputStream = null;
     let activeTurn = null;
     let interimTimer = null;
-    let translationSeq = 0;
+    let streamGeneration = 0;
     let historyEnabled = false;
     let historyTimer = null;
     let historyMinutes = 1;
     let lastHistoryTurnIndex = 0;
     let conversationTurns = [];
     let historySnapshots = [];
+    const targetRenderState = new WeakMap();
 
     init();
 
@@ -609,7 +610,7 @@
     async function startListening() {
       const useDeepgram = (engine === 'deepgram' || engine === 'auto') && deepgramAvailable;
       try {
-        clearActiveTurn();
+        clearActiveTurn(false);
         setStatus(useDeepgram ? '高速認識を起動中...' : 'ブラウザ認識を起動中...');
         prepareSpeechStart(useDeepgram);
 
@@ -631,7 +632,7 @@
       listening = false;
       startButton.classList.remove('on');
       startButton.textContent = '開始';
-      clearActiveTurn();
+      clearActiveTurn(false);
 
       if (recognition) {
         recognition.onend = null;
@@ -843,9 +844,12 @@
         activeTurn = {
           startedAt,
           lastInterimText: '',
+          direction: { ...currentDirection },
+          generation: streamGeneration,
           sourceEl: addBubble(sourceFeed, 'source', currentDirection.source),
           targetEl: addBubble(targetFeed, 'pending', currentDirection.target)
         };
+        resetTargetRenderState(activeTurn.targetEl, activeTurn.generation);
       }
 
       updateBubble(activeTurn.sourceEl, text);
@@ -853,41 +857,54 @@
 
       if (isFinal) {
         const targetEl = activeTurn.targetEl;
-        translateInto(text, targetEl, startedAt, true);
+        const turnDirection = activeTurn.direction;
+        const generation = activeTurn.generation;
+        translateInto(text, targetEl, startedAt, true, turnDirection, generation);
         activeTurn = null;
         return;
       }
 
       const targetEl = activeTurn.targetEl;
+      const turn = activeTurn;
+      const turnDirection = activeTurn.direction;
+      const generation = activeTurn.generation;
       interimTimer = setTimeout(() => {
-        if (!activeTurn || activeTurn.lastInterimText === text) return;
-        if (!shouldTranslateInterim(text, currentDirection.source)) return;
-        activeTurn.lastInterimText = text;
-        translateInto(text, targetEl, startedAt, false);
-      }, 35);
+        if (activeTurn !== turn || turn.lastInterimText === text) return;
+        if (!shouldTranslateInterim(text, turnDirection.source)) return;
+        turn.lastInterimText = text;
+        translateInto(text, targetEl, startedAt, false, turnDirection, generation);
+      }, 20);
     }
 
-    async function translateInto(text, targetEl, startedAt, final) {
+    async function translateInto(text, targetEl, startedAt, final, turnDirection, generation) {
       if (!text.trim()) return;
 
-      const currentDirection = direction();
-      const requestId = ++translationSeq;
+      const currentDirection = turnDirection || direction();
+      const state = ensureTargetRenderState(targetEl, generation);
+      if (final) state.finalRequested = true;
+
       try {
         const translated = await translateText(text, currentDirection.source, currentDirection.target);
-        if (requestId !== translationSeq) return;
+        if (!canRenderTranslation(targetEl, generation, text, final)) return;
 
         const ms = Math.round(performance.now() - startedAt);
+        const renderState = ensureTargetRenderState(targetEl, generation);
         updateBubble(targetEl, translated);
         targetEl.classList.remove('pending');
-        scrollBottom(targetFeed);
+        renderState.renderedSourceLength = final ? text.trim().length : Math.max(renderState.renderedSourceLength, text.trim().length);
+        renderState.finalRendered = renderState.finalRendered || final;
+        scrollBottom(targetEl.parentElement || targetFeed);
         setStatus(`<strong>${ms}ms</strong> ${currentDirection.label}`);
 
         if (final) {
           conversationTurns.push({
             at: Date.now(),
             direction: currentDirection.label,
+            sourceLang: currentDirection.source,
+            targetLang: currentDirection.target,
             source: text,
             target: translated,
+            japanese: currentDirection.source === 'ja' ? text : translated,
             ms
           });
         }
@@ -901,9 +918,9 @@
     function shouldTranslateInterim(text, sourceLang) {
       const normalized = text.trim();
       if (!normalized) return false;
-      if (sourceLang === 'ja') return [...normalized].length >= 4;
+      if (sourceLang === 'ja') return [...normalized].length >= 2;
       const words = normalized.split(/\s+/).filter(Boolean);
-      return words.length >= 2 || normalized.length >= 10;
+      return words.length >= 2 || normalized.length >= 5;
     }
 
     async function translateText(text, sourceLang, targetLang, signal) {
@@ -946,9 +963,9 @@
     function switchDirection() {
       if (listening) stopListening('翻訳方向を切り替えました');
       directionIndex = (directionIndex + 1) % DIRECTIONS.length;
-      clearActiveTurn();
+      clearActiveTurn(false);
       renderDirection();
-      clearFeeds();
+      realignFeedsForDirection();
       setStatus(`翻訳方向: ${direction().label}`);
     }
 
@@ -973,7 +990,25 @@
     function clearFeeds() {
       sourceFeed.innerHTML = `<div class="empty">${lang(direction().source).sourceEmpty}</div>`;
       targetFeed.innerHTML = `<div class="empty">${lang(direction().target).targetEmpty}</div>`;
-      clearActiveTurn();
+      clearActiveTurn(true);
+    }
+
+    function realignFeedsForDirection() {
+      const current = direction();
+      const bubbles = [...sourceFeed.querySelectorAll('.bubble'), ...targetFeed.querySelectorAll('.bubble')];
+      sourceFeed.innerHTML = '';
+      targetFeed.innerHTML = '';
+
+      bubbles.forEach((bubble) => {
+        const languageId = bubble.lang === 'ja' ? 'ja' : 'en';
+        const feed = languageId === current.source ? sourceFeed : targetFeed;
+        feed.appendChild(bubble);
+      });
+
+      ensureFeedEmpty(sourceFeed, lang(current.source).sourceEmpty);
+      ensureFeedEmpty(targetFeed, lang(current.target).targetEmpty);
+      scrollBottom(sourceFeed);
+      scrollBottom(targetFeed);
     }
 
     function resetEmptyText() {
@@ -999,15 +1034,52 @@
       bubble.querySelector('.bubble-text').textContent = text;
     }
 
+    function resetTargetRenderState(targetEl, generation = streamGeneration) {
+      targetRenderState.set(targetEl, {
+        generation,
+        renderedSourceLength: 0,
+        finalRequested: false,
+        finalRendered: false
+      });
+    }
+
+    function ensureTargetRenderState(targetEl, generation = streamGeneration) {
+      let state = targetRenderState.get(targetEl);
+      if (!state || state.generation !== generation) {
+        resetTargetRenderState(targetEl, generation);
+        state = targetRenderState.get(targetEl);
+      }
+      return state;
+    }
+
+    function canRenderTranslation(targetEl, generation, text, final) {
+      if (!targetEl || !targetEl.isConnected) return false;
+      const state = targetRenderState.get(targetEl);
+      if (!state || state.generation !== generation) return false;
+      if (!final && state.finalRendered) return false;
+
+      const sourceLength = text.trim().length;
+      if (!final && !targetEl.classList.contains('pending') && sourceLength < state.renderedSourceLength) {
+        return false;
+      }
+
+      return true;
+    }
+
     function removeEmpty(feed) {
       const empty = feed.querySelector('.empty');
       if (empty) empty.remove();
     }
 
-    function clearActiveTurn(abort = true) {
+    function ensureFeedEmpty(feed, message) {
+      if (feed.querySelector('.bubble')) return;
+      feed.innerHTML = `<div class="empty">${message}</div>`;
+    }
+
+    function clearActiveTurn(abort = false) {
       clearTimeout(interimTimer);
       interimTimer = null;
-      if (abort) translationSeq += 1;
+      if (abort) streamGeneration += 1;
       activeTurn = null;
     }
 
@@ -1064,7 +1136,12 @@
 
     function saveHistorySnapshot(force) {
       const newTurns = conversationTurns.slice(lastHistoryTurnIndex);
-      const turns = newTurns;
+      const turns = newTurns
+        .map((turn) => ({
+          at: turn.at,
+          japanese: japaneseFromTurn(turn)
+        }))
+        .filter((turn) => turn.japanese);
 
       if (!turns.length) {
         if (force || historyEnabled) setStatus('保存する会話がまだありません');
@@ -1086,13 +1163,13 @@
 
     function renderHistory() {
       if (!historySnapshots.length) {
-        historyList.innerHTML = '<div class="history-empty">履歴をONにすると、指定した間隔で会話を残します</div>';
+        historyList.innerHTML = '<div class="history-empty">履歴をONにすると、日本語だけ指定した間隔で残します</div>';
         return;
       }
 
       historyList.innerHTML = historySnapshots.map((snapshot) => {
         const lines = snapshot.turns.map((turn) => `
-          <p class="history-line">${escapeHtml(turn.direction)}: ${escapeHtml(turn.source)} / ${escapeHtml(turn.target)}</p>
+          <p class="history-line">${escapeHtml(japaneseFromTurn(turn))}</p>
         `).join('');
 
         return `
@@ -1102,6 +1179,15 @@
           </section>
         `;
       }).join('');
+    }
+
+    function japaneseFromTurn(turn) {
+      if (turn.japanese) return turn.japanese;
+      if (turn.sourceLang === 'ja') return turn.source || '';
+      if (turn.targetLang === 'ja') return turn.target || '';
+      if (turn.direction === '英語→日本語') return turn.target || '';
+      if (turn.direction === '日本語→英語') return turn.source || '';
+      return turn.target || turn.source || '';
     }
 
     function loadHistory() {

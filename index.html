@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f5ef">
-  <title>高速日英翻訳</title>
+  <title>高速多言語翻訳</title>
   <style>
     :root {
       color-scheme: light;
@@ -81,7 +81,7 @@
     }
 
     .pane.ja { background: var(--ja); }
-    .pane.en { background: var(--en); }
+    .pane.partner { background: var(--en); }
 
     .pane-head {
       display: flex;
@@ -143,17 +143,6 @@
       opacity: 0.74;
     }
 
-    .bubble-meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 6px;
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-    }
-
     .bubble-text {
       font-size: clamp(18px, 3vw, 36px);
       line-height: 1.36;
@@ -171,7 +160,7 @@
 
     .topbar {
       display: grid;
-      grid-template-columns: auto auto 1fr auto auto;
+      grid-template-columns: auto auto auto 1fr auto auto;
       gap: 8px;
       align-items: center;
     }
@@ -331,12 +320,12 @@
       </div>
     </section>
 
-    <section class="pane en" aria-label="English pane">
+    <section class="pane partner" aria-label="Partner language pane">
       <header class="pane-head">
-        <div class="lang-name">English</div>
-        <div class="lang-sub" id="enMode">Speak to Japanese</div>
+        <div class="lang-name" id="partnerName">English</div>
+        <div class="lang-sub" id="partnerMode">Speak to Japanese</div>
       </header>
-      <div class="feed" id="enFeed">
+      <div class="feed" id="partnerFeed">
         <div class="empty">Speak English and it returns Japanese</div>
       </div>
     </section>
@@ -346,28 +335,76 @@
     <div class="topbar">
       <button class="main-button" id="startButton" type="button" onclick="toggleListening()">開始</button>
       <button class="select-button" id="engineButton" type="button" onclick="switchEngine()" title="音声認識エンジン">自動</button>
+      <button class="select-button" id="partnerButton" type="button" onclick="switchPartnerLanguage()" title="相手の言語">English</button>
       <button class="status" id="status" type="button" onclick="cycleHint()">待機中</button>
       <button class="icon-button" type="button" onclick="toggleLayout()" title="対面レイアウト">上下</button>
       <button class="icon-button" type="button" onclick="clearFeeds()" title="履歴を消去">消去</button>
     </div>
     <div class="quick-input">
-      <textarea id="manualText" rows="1" placeholder="ここに日本語またはEnglishを入れてEnter"></textarea>
+      <textarea id="manualText" rows="1" placeholder="日本語 / English / 中文 / 한국어 を入れてEnter"></textarea>
       <button class="send-button" type="button" onclick="sendManual()">翻訳</button>
     </div>
   </footer>
 
   <script>
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const PARTNER_LANGUAGES = [
+      {
+        id: 'en',
+        google: 'en',
+        speech: 'en-US',
+        deepgram: 'en',
+        name: 'English',
+        button: 'English',
+        empty: 'Speak English and it returns Japanese',
+        jaMode: '話すとEnglishへ',
+        partnerMode: 'Speak to Japanese'
+      },
+      {
+        id: 'zh',
+        google: 'zh-TW',
+        speech: 'zh-TW',
+        deepgram: 'zh',
+        name: '中文',
+        button: '中文',
+        empty: '說中文時會翻成日文',
+        jaMode: '話すと中文へ',
+        partnerMode: '說中文時翻成日文'
+      },
+      {
+        id: 'ko',
+        google: 'ko',
+        speech: 'ko-KR',
+        deepgram: 'ko',
+        name: '한국어',
+        button: '한국어',
+        empty: '한국어로 말하면 일본어로 번역합니다',
+        jaMode: '話すと한국어へ',
+        partnerMode: '한국어를 일본어로'
+      }
+    ];
+    const LANGUAGE_BY_ID = {
+      ja: { id: 'ja', google: 'ja', speech: 'ja-JP', deepgram: 'ja', name: '日本語' },
+      en: PARTNER_LANGUAGES[0],
+      zh: PARTNER_LANGUAGES[1],
+      ko: PARTNER_LANGUAGES[2]
+    };
+
     const feeds = {
       ja: document.getElementById('jaFeed'),
-      en: document.getElementById('enFeed')
+      partner: document.getElementById('partnerFeed')
     };
     const statusEl = document.getElementById('status');
     const startButton = document.getElementById('startButton');
     const engineButton = document.getElementById('engineButton');
+    const partnerButton = document.getElementById('partnerButton');
+    const partnerName = document.getElementById('partnerName');
+    const partnerMode = document.getElementById('partnerMode');
+    const jaMode = document.getElementById('jaMode');
     const manualText = document.getElementById('manualText');
     const translationCache = new Map();
 
+    let partnerIndex = 0;
     let listening = false;
     let engine = 'auto';
     let deepgramAvailable = false;
@@ -387,6 +424,7 @@
 
     async function init() {
       bindManualInput();
+      renderPartnerLanguage();
       await detectDeepgram();
       setStatus(deepgramAvailable ? '待機中: Deepgram高速モード可' : '待機中: ブラウザ音声認識');
     }
@@ -487,7 +525,7 @@
       recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = hint === 'en' ? 'en-US' : hint === 'ja' ? 'ja-JP' : lastBrowserLang;
+      recognition.lang = hint === 'partner' ? partner().speech : hint === 'ja' ? 'ja-JP' : lastBrowserLang;
 
       recognition.onresult = (event) => {
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -545,7 +583,7 @@
       });
 
       if (hint === 'ja') params.set('language', 'ja');
-      if (hint === 'en') params.set('language', 'en');
+      if (hint === 'partner') params.set('language', partner().deepgram);
 
       socket = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`, ['token', tokenData.key]);
 
@@ -592,13 +630,13 @@
     }
 
     function handleTranscript(text, isFinal, forcedLang) {
-      const sourceLang = forcedLang || detectLang(text);
-      const targetLang = sourceLang === 'ja' ? 'en' : 'ja';
-      const sourceFeed = feeds[sourceLang];
-      const targetFeed = feeds[targetLang];
+      const sourceLang = normalizeAppLang(forcedLang) || detectLang(text);
+      const targetLang = sourceLang === 'ja' ? partner().id : 'ja';
+      const sourceFeed = feedForLang(sourceLang);
+      const targetFeed = feedForLang(targetLang);
       const startedAt = activeTurn?.startedAt || performance.now();
 
-      lastBrowserLang = sourceLang === 'ja' ? 'ja-JP' : 'en-US';
+      lastBrowserLang = langInfo(sourceLang).speech;
 
       if (!activeTurn || activeTurn.sourceLang !== sourceLang) {
         clearActiveTurn(false);
@@ -606,12 +644,12 @@
           sourceLang,
           targetLang,
           startedAt,
-          sourceEl: addBubble(sourceFeed, 'source', sourceLang, isFinal ? '原文' : '聞き取り中'),
-          targetEl: addBubble(targetFeed, 'pending', targetLang, '翻訳中')
+          sourceEl: addBubble(sourceFeed, 'source', sourceLang),
+          targetEl: addBubble(targetFeed, 'pending', targetLang)
         };
       }
 
-      updateBubble(activeTurn.sourceEl, text, isFinal ? '原文' : '聞き取り中');
+      updateBubble(activeTurn.sourceEl, text);
 
       const doNow = isFinal;
       clearTimeout(interimTimer);
@@ -635,25 +673,27 @@
       try {
         const translated = await translateText(text, sourceLang, targetLang, currentAbort.signal);
         const ms = Math.round(performance.now() - startedAt);
-        updateBubble(targetEl, translated, final ? `${ms}ms` : `即時 ${ms}ms`);
+        updateBubble(targetEl, translated);
         targetEl.classList.remove('pending');
-        scrollToEdge(feeds[targetLang]);
-        setStatus(`<strong>${ms}ms</strong> で翻訳: ${sourceLang.toUpperCase()} -> ${targetLang.toUpperCase()}`);
+        scrollToEdge(feedForLang(targetLang));
+        setStatus(`<strong>${ms}ms</strong> で翻訳: ${displayLang(sourceLang)} -> ${displayLang(targetLang)}`);
       } catch (error) {
         if (error.name === 'AbortError') return;
-        updateBubble(targetEl, '翻訳に失敗しました', 'error');
+        updateBubble(targetEl, '翻訳に失敗しました');
         setStatus(`翻訳エラー: ${error.message}`);
       }
     }
 
     async function translateText(text, sourceLang, targetLang, signal) {
-      const key = `${sourceLang}:${targetLang}:${text}`;
+      const sourceCode = googleCode(sourceLang);
+      const targetCode = googleCode(targetLang);
+      const key = `${sourceCode}:${targetCode}:${text}`;
       if (translationCache.has(key)) return translationCache.get(key);
 
       const url = new URL('https://translate.googleapis.com/translate_a/single');
       url.searchParams.set('client', 'gtx');
-      url.searchParams.set('sl', sourceLang);
-      url.searchParams.set('tl', targetLang);
+      url.searchParams.set('sl', sourceCode);
+      url.searchParams.set('tl', targetCode);
       url.searchParams.set('dt', 't');
       url.searchParams.set('q', text);
 
@@ -683,13 +723,20 @@
 
     function detectLang(text) {
       if (hint === 'ja') return 'ja';
-      if (hint === 'en') return 'en';
+      if (hint === 'partner') return partner().id;
 
-      const jaChars = (text.match(/[\u3040-\u30ff\u3400-\u9fff]/g) || []).length;
+      const kanaChars = (text.match(/[\u3040-\u30ff]/g) || []).length;
+      const hanChars = (text.match(/[\u3400-\u9fff]/g) || []).length;
+      const hangulChars = (text.match(/[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f]/g) || []).length;
       const enWords = (text.match(/[A-Za-z][A-Za-z'-]*/g) || []).length;
-      if (jaChars === 0 && enWords > 0) return 'en';
-      if (jaChars >= Math.max(2, enWords)) return 'ja';
-      return enWords > jaChars ? 'en' : 'ja';
+
+      if (hangulChars > 0) return 'ko';
+      if (enWords > 0 && kanaChars === 0 && hangulChars === 0 && hanChars === 0) return 'en';
+      if (hanChars > 0 && kanaChars === 0 && hangulChars === 0) return 'zh';
+
+      if (kanaChars > 0) return 'ja';
+
+      return 'ja';
     }
 
     function normalizeDeepgramLang(value) {
@@ -697,30 +744,35 @@
       const lang = String(value).toLowerCase();
       if (lang.startsWith('ja')) return 'ja';
       if (lang.startsWith('en')) return 'en';
+      if (lang.startsWith('zh') || lang.startsWith('cmn')) return 'zh';
+      if (lang.startsWith('ko')) return 'ko';
       return '';
     }
 
-    function addBubble(feed, stateClass, lang, meta) {
+    function normalizeAppLang(value) {
+      if (!value) return '';
+      const lang = String(value).toLowerCase();
+      if (lang === 'ja' || lang.startsWith('ja')) return 'ja';
+      if (lang === 'en' || lang.startsWith('en')) return 'en';
+      if (lang.startsWith('zh') || lang.startsWith('cmn')) return 'zh';
+      if (lang === 'ko' || lang.startsWith('ko')) return 'ko';
+      return '';
+    }
+
+    function addBubble(feed, stateClass, lang) {
       removeEmpty(feed);
       const bubble = document.createElement('article');
       bubble.className = `bubble ${stateClass || ''}`;
-      bubble.lang = lang === 'ja' ? 'ja' : 'en';
-      bubble.innerHTML = `
-        <div class="bubble-meta">
-          <span>${lang === 'ja' ? 'Japanese' : 'English'}</span>
-          <span>${meta}</span>
-        </div>
-        <div class="bubble-text"></div>
-      `;
+      bubble.lang = lang === 'ja' ? 'ja' : lang === 'zh' ? 'zh-Hant' : lang;
+      bubble.innerHTML = '<div class="bubble-text"></div>';
       feed.appendChild(bubble);
       scrollToEdge(feed);
       return bubble;
     }
 
-    function updateBubble(bubble, text, meta) {
+    function updateBubble(bubble, text) {
       if (!bubble) return;
       bubble.querySelector('.bubble-text').textContent = text;
-      bubble.querySelector('.bubble-meta span:last-child').textContent = meta;
     }
 
     function removeEmpty(feed) {
@@ -729,8 +781,8 @@
     }
 
     function clearFeeds() {
-      feeds.ja.innerHTML = '<div class="empty">日本語で話すと、英語に変換します</div>';
-      feeds.en.innerHTML = '<div class="empty">Speak English and it returns Japanese</div>';
+      feeds.ja.innerHTML = `<div class="empty">日本語で話すと、${partner().name}に変換します</div>`;
+      feeds.partner.innerHTML = `<div class="empty">${partner().empty}</div>`;
       clearActiveTurn();
       setStatus('履歴を消しました');
     }
@@ -768,14 +820,61 @@
     }
 
     function cycleHint() {
-      hint = hint === 'auto' ? 'ja' : hint === 'ja' ? 'en' : 'auto';
+      hint = hint === 'auto' ? 'ja' : hint === 'ja' ? 'partner' : 'auto';
       setStatus(`聞き取りヒント: ${hintLabel()}`);
     }
 
     function hintLabel() {
       if (hint === 'ja') return '日本語優先';
-      if (hint === 'en') return 'English first';
+      if (hint === 'partner') return `${partner().name}優先`;
       return '自動判定';
+    }
+
+    function switchPartnerLanguage() {
+      if (listening) stopListening('相手の言語を切り替えました');
+      partnerIndex = (partnerIndex + 1) % PARTNER_LANGUAGES.length;
+      hint = 'auto';
+      renderPartnerLanguage();
+      clearFeeds();
+      setStatus(`相手の言語: ${partner().name}`);
+    }
+
+    function renderPartnerLanguage() {
+      const lang = partner();
+      partnerButton.textContent = lang.button;
+      partnerName.textContent = lang.name;
+      jaMode.textContent = lang.jaMode;
+      partnerMode.textContent = lang.partnerMode;
+      manualText.placeholder = `日本語 / ${lang.name} を入れてEnter`;
+      feeds.ja.querySelector('.empty')?.replaceWith(emptyNode(`日本語で話すと、${lang.name}に変換します`));
+      feeds.partner.querySelector('.empty')?.replaceWith(emptyNode(lang.empty));
+    }
+
+    function emptyNode(text) {
+      const div = document.createElement('div');
+      div.className = 'empty';
+      div.textContent = text;
+      return div;
+    }
+
+    function partner() {
+      return PARTNER_LANGUAGES[partnerIndex];
+    }
+
+    function googleCode(lang) {
+      return langInfo(lang).google;
+    }
+
+    function displayLang(lang) {
+      return langInfo(lang).name;
+    }
+
+    function langInfo(lang) {
+      return LANGUAGE_BY_ID[lang] || partner();
+    }
+
+    function feedForLang(lang) {
+      return lang === 'ja' ? feeds.ja : feeds.partner;
     }
 
     function toggleLayout() {

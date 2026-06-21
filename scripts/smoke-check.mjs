@@ -5,10 +5,13 @@ const required = [
   'SpeechRecognition',
   'translate.googleapis.com',
   'detectLang',
+  'switchPartnerLanguage',
   'startBrowserRecognition',
   'startDeepgram',
   '日本語',
-  'English'
+  'English',
+  '中文',
+  '한국어'
 ];
 
 const missing = required.filter((item) => !html.includes(item));

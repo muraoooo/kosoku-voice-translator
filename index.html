@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f5ef">
-  <title>高速多言語翻訳</title>
+  <title>高速翻訳</title>
   <style>
     :root {
       color-scheme: light;
@@ -14,6 +14,7 @@
       --line: #ddd8cc;
       --ja: #fff8df;
       --en: #eaf7f5;
+      --panel: #fbfaf6;
       --accent: #e24b35;
       --accent-dark: #aa2f22;
       --ok: #127a54;
@@ -37,20 +38,30 @@
       grid-template-rows: 1fr auto;
     }
 
-    button, textarea, select {
+    button, textarea, input {
       font: inherit;
     }
 
-    .stage {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+    .workspace {
       min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr minmax(260px, 320px);
       border-bottom: 1px solid var(--line);
     }
 
-    .stage.stack {
+    .workspace.history-closed {
       grid-template-columns: 1fr;
-      grid-template-rows: 1fr 1fr;
+    }
+
+    .workspace.history-closed .history-panel {
+      display: none;
+    }
+
+    .stage {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
     }
 
     .pane {
@@ -62,39 +73,25 @@
       border-right: 1px solid var(--line);
     }
 
-    .stage.stack .pane {
-      border-right: 0;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .stage.stack .pane:first-child {
-      transform: rotate(180deg);
-    }
-
-    .stage.stack .pane:first-child .feed {
-      flex-direction: column-reverse;
-    }
-
     .pane:last-child {
       border-right: 0;
-      border-bottom: 0;
     }
 
     .pane.ja { background: var(--ja); }
-    .pane.partner { background: var(--en); }
+    .pane.en { background: var(--en); }
 
     .pane-head {
+      min-height: 58px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       padding: 12px clamp(14px, 3vw, 24px);
       border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-      min-height: 54px;
     }
 
     .lang-name {
-      font-size: clamp(18px, 2.7vw, 32px);
+      font-size: clamp(19px, 2.7vw, 32px);
       font-weight: 900;
       letter-spacing: 0;
     }
@@ -102,7 +99,7 @@
     .lang-sub {
       color: var(--muted);
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
       white-space: nowrap;
     }
 
@@ -112,25 +109,27 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: clamp(12px, 2.6vw, 24px);
+      padding: clamp(12px, 2.5vw, 24px);
       scroll-behavior: smooth;
       -webkit-overflow-scrolling: touch;
     }
 
     .empty {
       margin: auto;
+      max-width: 82%;
       color: rgba(24, 24, 23, 0.34);
       font-size: clamp(16px, 2.1vw, 24px);
       font-weight: 800;
+      line-height: 1.35;
       text-align: center;
     }
 
     .bubble {
       width: min(100%, 920px);
       border: 1px solid rgba(0, 0, 0, 0.08);
-      background: rgba(255, 255, 255, 0.66);
+      background: rgba(255, 255, 255, 0.72);
       box-shadow: 0 6px 18px rgba(32, 26, 12, 0.07);
-      padding: 12px 14px;
+      padding: 13px 15px;
       border-radius: 8px;
       word-break: break-word;
     }
@@ -140,18 +139,100 @@
     }
 
     .bubble.pending {
-      opacity: 0.74;
+      opacity: 0.68;
     }
 
     .bubble-text {
       font-size: clamp(18px, 3vw, 36px);
       line-height: 1.36;
-      font-weight: 800;
+      font-weight: 850;
       letter-spacing: 0;
     }
 
+    .history-panel {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+      background: #f8fbf7;
+      border-left: 1px solid var(--line);
+    }
+
+    .history-head {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .history-title {
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .history-save {
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 900;
+      padding: 0 10px;
+    }
+
+    .history-list {
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      padding: 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .history-empty {
+      margin: auto;
+      color: rgba(24, 24, 23, 0.42);
+      font-size: 14px;
+      font-weight: 800;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .history-item {
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.78);
+      padding: 10px;
+    }
+
+    .history-time {
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .history-line {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .history-line:last-child {
+      margin-bottom: 0;
+    }
+
     .dock {
-      background: #fbfaf6;
+      background: var(--panel);
       box-shadow: var(--shadow);
       padding: 12px clamp(12px, 2.5vw, 22px) calc(12px + env(safe-area-inset-bottom));
       display: grid;
@@ -160,7 +241,7 @@
 
     .topbar {
       display: grid;
-      grid-template-columns: auto auto auto 1fr auto auto;
+      grid-template-columns: auto auto auto auto 1fr auto;
       gap: 8px;
       align-items: center;
     }
@@ -172,8 +253,8 @@
       border-radius: 8px;
       background: var(--accent);
       color: #fff;
-      font-weight: 900;
       cursor: pointer;
+      font-weight: 900;
       padding: 0 18px;
     }
 
@@ -194,26 +275,30 @@
     }
 
     .select-button {
-      min-width: 108px;
+      min-width: 112px;
       color: #29251f;
+    }
+
+    .history-button.on {
+      border-color: var(--accent);
+      color: var(--accent-dark);
     }
 
     .status {
       min-width: 0;
       height: 48px;
-      border: 0;
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 800;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      text-align: center;
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 850;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .status strong {
@@ -245,12 +330,53 @@
       border-radius: 8px;
       background: #22201c;
       color: #fff;
-      font-weight: 900;
       cursor: pointer;
+      font-weight: 900;
       padding: 0 14px;
     }
 
+    .history-controls {
+      display: grid;
+      grid-template-columns: auto minmax(140px, 260px) auto;
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .history-controls input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    @media (max-width: 920px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace.history-open {
+        grid-template-rows: minmax(0, 1fr) 220px;
+      }
+
+      .history-panel {
+        display: none;
+      }
+
+      .workspace.history-open .history-panel {
+        display: grid;
+        min-height: 220px;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+
     @media (max-width: 720px) {
+      .dock {
+        max-width: 100vw;
+        overflow: hidden;
+      }
+
       .stage {
         grid-template-columns: 1fr;
         grid-template-rows: 1fr 1fr;
@@ -261,150 +387,152 @@
         border-bottom: 1px solid var(--line);
       }
 
+      .pane:last-child {
+        border-bottom: 0;
+      }
+
       .topbar {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        justify-content: stretch;
+        grid-template-columns: repeat(2, 128px);
+        justify-content: start;
       }
 
       .status {
-        grid-column: 1 / 3;
+        grid-column: 1 / -1;
         order: 2;
       }
 
-      .icon-button[title="対面レイアウト"] {
-        order: 0;
-      }
-
-      .icon-button[title="履歴を消去"] {
-        order: 2;
-      }
-
-      .main-button {
+      .main-button, .select-button, .icon-button {
         min-width: 0;
         width: 100%;
         padding: 0 8px;
       }
 
-      .select-button {
-        min-width: 0;
-        width: 100%;
-        padding: 0 8px;
+      .quick-input {
+        grid-template-columns: 1fr;
       }
 
-      .icon-button {
-        min-width: 0;
-        width: 100%;
-        padding: 0 6px;
+      .send-button {
+        min-height: 44px;
       }
 
       .lang-sub {
         display: none;
       }
 
-      .empty {
-        max-width: 82%;
-        line-height: 1.35;
+      .history-controls {
+        grid-template-columns: auto 1fr auto;
       }
     }
   </style>
 </head>
 <body>
-  <main class="stage" id="stage">
-    <section class="pane ja" aria-label="Japanese pane">
-      <header class="pane-head">
-        <div class="lang-name">日本語</div>
-        <div class="lang-sub" id="jaMode">話すと英語へ</div>
-      </header>
-      <div class="feed" id="jaFeed">
-        <div class="empty">日本語で話すと、英語に変換します</div>
-      </div>
-    </section>
+  <div class="workspace history-closed" id="workspace">
+    <main class="stage" id="stage">
+      <section class="pane ja" id="sourcePane" aria-label="Source language pane">
+        <header class="pane-head">
+          <div class="lang-name" id="sourceName">日本語</div>
+          <div class="lang-sub" id="sourceMode">話す言語</div>
+        </header>
+        <div class="feed" id="sourceFeed">
+          <div class="empty" id="sourceEmpty">日本語で話してください</div>
+        </div>
+      </section>
 
-    <section class="pane partner" aria-label="Partner language pane">
-      <header class="pane-head">
-        <div class="lang-name" id="partnerName">English</div>
-        <div class="lang-sub" id="partnerMode">Speak to Japanese</div>
+      <section class="pane en" id="targetPane" aria-label="Target language pane">
+        <header class="pane-head">
+          <div class="lang-name" id="targetName">English</div>
+          <div class="lang-sub" id="targetMode">翻訳結果</div>
+        </header>
+        <div class="feed" id="targetFeed">
+          <div class="empty" id="targetEmpty">英語に翻訳します</div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="history-panel" id="historyPanel" aria-label="Conversation history">
+      <header class="history-head">
+        <div class="history-title">履歴</div>
+        <button class="history-save" type="button" onclick="saveHistorySnapshot(true)">今保存</button>
       </header>
-      <div class="feed" id="partnerFeed">
-        <div class="empty">Speak English and it returns Japanese</div>
+      <div class="history-list" id="historyList">
+        <div class="history-empty">履歴をONにすると、指定した間隔で会話を残します</div>
       </div>
-    </section>
-  </main>
+    </aside>
+  </div>
 
   <footer class="dock">
     <div class="topbar">
       <button class="main-button" id="startButton" type="button" onclick="toggleListening()">開始</button>
-      <button class="select-button" id="engineButton" type="button" onclick="switchEngine()" title="音声認識エンジン">自動</button>
-      <button class="select-button" id="partnerButton" type="button" onclick="switchPartnerLanguage()" title="相手の言語">English</button>
-      <button class="status" id="status" type="button" onclick="cycleHint()">待機中</button>
-      <button class="icon-button" type="button" onclick="toggleLayout()" title="対面レイアウト">上下</button>
-      <button class="icon-button" type="button" onclick="clearFeeds()" title="履歴を消去">消去</button>
+      <button class="select-button" id="engineButton" type="button" onclick="switchEngine()" title="音声認識エンジン">標準</button>
+      <button class="select-button" id="directionButton" type="button" onclick="switchDirection()" title="翻訳方向">日本語→英語</button>
+      <button class="select-button history-button" id="historyButton" type="button" onclick="toggleHistory()" title="履歴">履歴</button>
+      <div class="status" id="status">待機中</div>
+      <button class="icon-button" type="button" onclick="clearFeeds()" title="画面を消去">消去</button>
     </div>
     <div class="quick-input">
-      <textarea id="manualText" rows="1" placeholder="日本語 / English / 中文 / 한국어 を入れてEnter"></textarea>
+      <textarea id="manualText" rows="1" placeholder="日本語を入れてEnter"></textarea>
       <button class="send-button" type="button" onclick="sendManual()">翻訳</button>
     </div>
+    <label class="history-controls">
+      <span>履歴間隔</span>
+      <input id="historyInterval" type="range" min="1" max="5" step="1" value="1" oninput="changeHistoryInterval()">
+      <span id="historyIntervalLabel">1分</span>
+    </label>
   </footer>
 
   <script>
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const PARTNER_LANGUAGES = [
-      {
+    const LANGS = {
+      ja: {
+        id: 'ja',
+        google: 'ja',
+        speech: 'ja-JP',
+        deepgram: 'ja',
+        name: '日本語',
+        pane: 'ja',
+        inputPlaceholder: '日本語を入れてEnter',
+        sourceEmpty: '日本語で話してください',
+        targetEmpty: '日本語に翻訳します'
+      },
+      en: {
         id: 'en',
         google: 'en',
         speech: 'en-US',
         deepgram: 'en',
         name: 'English',
-        button: 'English',
-        empty: 'Speak English and it returns Japanese',
-        jaMode: '話すとEnglishへ',
-        partnerMode: 'Speak to Japanese'
-      },
-      {
-        id: 'zh',
-        google: 'zh-TW',
-        speech: 'zh-TW',
-        deepgram: 'zh',
-        name: '中文',
-        button: '中文',
-        empty: '說中文時會翻成日文',
-        jaMode: '話すと中文へ',
-        partnerMode: '說中文時翻成日文'
-      },
-      {
-        id: 'ko',
-        google: 'ko',
-        speech: 'ko-KR',
-        deepgram: 'ko',
-        name: '한국어',
-        button: '한국어',
-        empty: '한국어로 말하면 일본어로 번역합니다',
-        jaMode: '話すと한국어へ',
-        partnerMode: '한국어를 일본어로'
+        pane: 'en',
+        inputPlaceholder: 'Englishを入れてEnter',
+        sourceEmpty: 'Speak English',
+        targetEmpty: '英語に翻訳します'
       }
-    ];
-    const LANGUAGE_BY_ID = {
-      ja: { id: 'ja', google: 'ja', speech: 'ja-JP', deepgram: 'ja', name: '日本語' },
-      en: PARTNER_LANGUAGES[0],
-      zh: PARTNER_LANGUAGES[1],
-      ko: PARTNER_LANGUAGES[2]
     };
 
-    const feeds = {
-      ja: document.getElementById('jaFeed'),
-      partner: document.getElementById('partnerFeed')
-    };
+    const DIRECTIONS = [
+      { id: 'ja-en', source: 'ja', target: 'en', label: '日本語→英語' },
+      { id: 'en-ja', source: 'en', target: 'ja', label: '英語→日本語' }
+    ];
+
+    const workspace = document.getElementById('workspace');
+    const sourcePane = document.getElementById('sourcePane');
+    const targetPane = document.getElementById('targetPane');
+    const sourceFeed = document.getElementById('sourceFeed');
+    const targetFeed = document.getElementById('targetFeed');
+    const sourceName = document.getElementById('sourceName');
+    const targetName = document.getElementById('targetName');
+    const sourceMode = document.getElementById('sourceMode');
+    const targetMode = document.getElementById('targetMode');
     const statusEl = document.getElementById('status');
     const startButton = document.getElementById('startButton');
     const engineButton = document.getElementById('engineButton');
-    const partnerButton = document.getElementById('partnerButton');
-    const partnerName = document.getElementById('partnerName');
-    const partnerMode = document.getElementById('partnerMode');
-    const jaMode = document.getElementById('jaMode');
+    const directionButton = document.getElementById('directionButton');
+    const historyButton = document.getElementById('historyButton');
+    const historyInterval = document.getElementById('historyInterval');
+    const historyIntervalLabel = document.getElementById('historyIntervalLabel');
+    const historyList = document.getElementById('historyList');
     const manualText = document.getElementById('manualText');
     const translationCache = new Map();
 
-    let partnerIndex = 0;
+    let directionIndex = 0;
     let listening = false;
     let engine = 'auto';
     let deepgramAvailable = false;
@@ -417,16 +545,22 @@
     let activeTurn = null;
     let currentAbort = null;
     let interimTimer = null;
-    let hint = 'auto';
-    let lastBrowserLang = 'ja-JP';
+    let historyEnabled = false;
+    let historyTimer = null;
+    let historyMinutes = 1;
+    let lastHistoryTurnIndex = 0;
+    let conversationTurns = [];
+    let historySnapshots = [];
 
     init();
 
     async function init() {
       bindManualInput();
-      renderPartnerLanguage();
+      loadHistory();
+      renderDirection();
+      renderHistory();
       await detectDeepgram();
-      setStatus(deepgramAvailable ? '待機中: Deepgram高速モード可' : '待機中: ブラウザ音声認識');
+      setStatus(deepgramAvailable ? '待機中: 高速認識可' : '待機中: ブラウザ音声認識');
     }
 
     async function detectDeepgram() {
@@ -525,7 +659,7 @@
       recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = hint === 'partner' ? partner().speech : hint === 'ja' ? 'ja-JP' : lastBrowserLang;
+      recognition.lang = lang(direction().source).speech;
 
       recognition.onresult = (event) => {
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -549,7 +683,7 @@
       };
 
       recognition.start();
-      setStatus(`聞き取り中: ${hintLabel()}`);
+      setStatus(`聞き取り中: ${direction().label}`);
     }
 
     async function startDeepgram() {
@@ -573,23 +707,20 @@
 
       const params = new URLSearchParams({
         model: 'nova-3',
+        language: lang(direction().source).deepgram,
         smart_format: 'true',
         punctuate: 'true',
         interim_results: 'true',
         encoding: 'linear16',
         sample_rate: '16000',
-        channels: '1',
-        detect_language: hint === 'auto' ? 'true' : 'false'
+        channels: '1'
       });
-
-      if (hint === 'ja') params.set('language', 'ja');
-      if (hint === 'partner') params.set('language', partner().deepgram);
 
       socket = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`, ['token', tokenData.key]);
 
       socket.onopen = () => {
         startAudioPipe();
-        setStatus(`高速聞き取り中: ${hintLabel()}`);
+        setStatus(`高速聞き取り中: ${direction().label}`);
       };
 
       socket.onmessage = async (event) => {
@@ -597,8 +728,7 @@
         const data = JSON.parse(raw);
         const text = data.channel?.alternatives?.[0]?.transcript?.trim();
         if (!text || data.type !== 'Results') return;
-        const language = normalizeDeepgramLang(data.channel?.detected_language || data.channel?.alternatives?.[0]?.languages?.[0]?.language);
-        handleTranscript(text, Boolean(data.is_final || data.speech_final), language);
+        handleTranscript(text, Boolean(data.is_final || data.speech_final));
       };
 
       socket.onclose = (event) => {
@@ -629,54 +759,58 @@
       processor.connect(audioCtx.destination);
     }
 
-    function handleTranscript(text, isFinal, forcedLang) {
-      const sourceLang = normalizeAppLang(forcedLang) || detectLang(text);
-      const targetLang = sourceLang === 'ja' ? partner().id : 'ja';
-      const sourceFeed = feedForLang(sourceLang);
-      const targetFeed = feedForLang(targetLang);
+    function handleTranscript(text, isFinal) {
+      const currentDirection = direction();
       const startedAt = activeTurn?.startedAt || performance.now();
 
-      lastBrowserLang = langInfo(sourceLang).speech;
-
-      if (!activeTurn || activeTurn.sourceLang !== sourceLang) {
-        clearActiveTurn(false);
+      if (!activeTurn) {
         activeTurn = {
-          sourceLang,
-          targetLang,
           startedAt,
-          sourceEl: addBubble(sourceFeed, 'source', sourceLang),
-          targetEl: addBubble(targetFeed, 'pending', targetLang)
+          sourceEl: addBubble(sourceFeed, 'source', currentDirection.source),
+          targetEl: addBubble(targetFeed, 'pending', currentDirection.target)
         };
       }
 
       updateBubble(activeTurn.sourceEl, text);
-
-      const doNow = isFinal;
       clearTimeout(interimTimer);
-      if (doNow) {
-        translateInto(text, sourceLang, targetLang, activeTurn.targetEl, startedAt, true);
-        activeTurn = null;
-      } else {
+
+      if (isFinal) {
         const targetEl = activeTurn.targetEl;
-        interimTimer = setTimeout(() => {
-          translateInto(text, sourceLang, targetLang, targetEl, startedAt, false);
-        }, 140);
+        translateInto(text, targetEl, startedAt, true);
+        activeTurn = null;
+        return;
       }
+
+      const targetEl = activeTurn.targetEl;
+      interimTimer = setTimeout(() => {
+        translateInto(text, targetEl, startedAt, false);
+      }, 120);
     }
 
-    async function translateInto(text, sourceLang, targetLang, targetEl, startedAt, final) {
+    async function translateInto(text, targetEl, startedAt, final) {
       if (!text.trim()) return;
 
       if (currentAbort) currentAbort.abort();
       currentAbort = new AbortController();
 
+      const currentDirection = direction();
       try {
-        const translated = await translateText(text, sourceLang, targetLang, currentAbort.signal);
+        const translated = await translateText(text, currentDirection.source, currentDirection.target, currentAbort.signal);
         const ms = Math.round(performance.now() - startedAt);
         updateBubble(targetEl, translated);
         targetEl.classList.remove('pending');
-        scrollToEdge(feedForLang(targetLang));
-        setStatus(`<strong>${ms}ms</strong> で翻訳: ${displayLang(sourceLang)} -> ${displayLang(targetLang)}`);
+        scrollBottom(targetFeed);
+        setStatus(`<strong>${ms}ms</strong> ${currentDirection.label}`);
+
+        if (final) {
+          conversationTurns.push({
+            at: Date.now(),
+            direction: currentDirection.label,
+            source: text,
+            target: translated,
+            ms
+          });
+        }
       } catch (error) {
         if (error.name === 'AbortError') return;
         updateBubble(targetEl, '翻訳に失敗しました');
@@ -685,8 +819,8 @@
     }
 
     async function translateText(text, sourceLang, targetLang, signal) {
-      const sourceCode = googleCode(sourceLang);
-      const targetCode = googleCode(targetLang);
+      const sourceCode = lang(sourceLang).google;
+      const targetCode = lang(targetLang).google;
       const key = `${sourceCode}:${targetCode}:${text}`;
       if (translationCache.has(key)) return translationCache.get(key);
 
@@ -721,52 +855,53 @@
       });
     }
 
-    function detectLang(text) {
-      if (hint === 'ja') return 'ja';
-      if (hint === 'partner') return partner().id;
-
-      const kanaChars = (text.match(/[\u3040-\u30ff]/g) || []).length;
-      const hanChars = (text.match(/[\u3400-\u9fff]/g) || []).length;
-      const hangulChars = (text.match(/[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f]/g) || []).length;
-      const enWords = (text.match(/[A-Za-z][A-Za-z'-]*/g) || []).length;
-
-      if (hangulChars > 0) return 'ko';
-      if (enWords > 0 && kanaChars === 0 && hangulChars === 0 && hanChars === 0) return 'en';
-      if (hanChars > 0 && kanaChars === 0 && hangulChars === 0) return 'zh';
-
-      if (kanaChars > 0) return 'ja';
-
-      return 'ja';
+    function switchDirection() {
+      if (listening) stopListening('翻訳方向を切り替えました');
+      directionIndex = (directionIndex + 1) % DIRECTIONS.length;
+      clearActiveTurn();
+      renderDirection();
+      clearFeeds();
+      setStatus(`翻訳方向: ${direction().label}`);
     }
 
-    function normalizeDeepgramLang(value) {
-      if (!value) return '';
-      const lang = String(value).toLowerCase();
-      if (lang.startsWith('ja')) return 'ja';
-      if (lang.startsWith('en')) return 'en';
-      if (lang.startsWith('zh') || lang.startsWith('cmn')) return 'zh';
-      if (lang.startsWith('ko')) return 'ko';
-      return '';
+    function renderDirection() {
+      const current = direction();
+      const source = lang(current.source);
+      const target = lang(current.target);
+
+      directionButton.textContent = current.label;
+      sourceName.textContent = source.name;
+      targetName.textContent = target.name;
+      sourceMode.textContent = '話す言語';
+      targetMode.textContent = '翻訳結果';
+      manualText.placeholder = source.inputPlaceholder;
+
+      sourcePane.className = `pane ${source.pane}`;
+      targetPane.className = `pane ${target.pane}`;
+      resetEmptyText();
     }
 
-    function normalizeAppLang(value) {
-      if (!value) return '';
-      const lang = String(value).toLowerCase();
-      if (lang === 'ja' || lang.startsWith('ja')) return 'ja';
-      if (lang === 'en' || lang.startsWith('en')) return 'en';
-      if (lang.startsWith('zh') || lang.startsWith('cmn')) return 'zh';
-      if (lang === 'ko' || lang.startsWith('ko')) return 'ko';
-      return '';
+    function clearFeeds() {
+      sourceFeed.innerHTML = `<div class="empty">${lang(direction().source).sourceEmpty}</div>`;
+      targetFeed.innerHTML = `<div class="empty">${lang(direction().target).targetEmpty}</div>`;
+      clearActiveTurn();
     }
 
-    function addBubble(feed, stateClass, lang) {
+    function resetEmptyText() {
+      const sourceEmpty = sourceFeed.querySelector('.empty');
+      const targetEmpty = targetFeed.querySelector('.empty');
+      if (sourceEmpty) sourceEmpty.textContent = lang(direction().source).sourceEmpty;
+      if (targetEmpty) targetEmpty.textContent = lang(direction().target).targetEmpty;
+    }
+
+    function addBubble(feed, stateClass, languageId) {
       removeEmpty(feed);
       const bubble = document.createElement('article');
       bubble.className = `bubble ${stateClass || ''}`;
-      bubble.lang = lang === 'ja' ? 'ja' : lang === 'zh' ? 'zh-Hant' : lang;
+      bubble.lang = languageId === 'ja' ? 'ja' : 'en';
       bubble.innerHTML = '<div class="bubble-text"></div>';
       feed.appendChild(bubble);
-      scrollToEdge(feed);
+      scrollBottom(feed);
       return bubble;
     }
 
@@ -780,13 +915,6 @@
       if (empty) empty.remove();
     }
 
-    function clearFeeds() {
-      feeds.ja.innerHTML = `<div class="empty">日本語で話すと、${partner().name}に変換します</div>`;
-      feeds.partner.innerHTML = `<div class="empty">${partner().empty}</div>`;
-      clearActiveTurn();
-      setStatus('履歴を消しました');
-    }
-
     function clearActiveTurn(abort = true) {
       clearTimeout(interimTimer);
       interimTimer = null;
@@ -797,13 +925,8 @@
       activeTurn = null;
     }
 
-    function scrollToEdge(feed) {
-      const stack = document.getElementById('stage').classList.contains('stack');
-      if (stack && feed === feeds.ja) {
-        feed.scrollTop = 0;
-      } else {
-        feed.scrollTop = feed.scrollHeight;
-      }
+    function scrollBottom(feed) {
+      feed.scrollTop = feed.scrollHeight;
     }
 
     function switchEngine() {
@@ -819,67 +942,117 @@
       setStatus(engine === 'browser' ? '標準モード: ブラウザ音声認識' : deepgramAvailable ? '高速モード: Deepgram' : '自動モード: 標準で待機');
     }
 
-    function cycleHint() {
-      hint = hint === 'auto' ? 'ja' : hint === 'ja' ? 'partner' : 'auto';
-      setStatus(`聞き取りヒント: ${hintLabel()}`);
+    function toggleHistory() {
+      historyEnabled = !historyEnabled;
+      workspace.classList.toggle('history-closed', !historyEnabled);
+      workspace.classList.toggle('history-open', historyEnabled);
+      historyButton.classList.toggle('on', historyEnabled);
+      historyButton.textContent = historyEnabled ? '履歴ON' : '履歴';
+
+      if (historyEnabled) {
+        startHistoryTimer();
+        saveHistorySnapshot(false);
+        setStatus(`履歴ON: ${historyMinutes}分ごと`);
+      } else {
+        stopHistoryTimer();
+        setStatus('履歴OFF');
+      }
     }
 
-    function hintLabel() {
-      if (hint === 'ja') return '日本語優先';
-      if (hint === 'partner') return `${partner().name}優先`;
-      return '自動判定';
+    function changeHistoryInterval() {
+      historyMinutes = Number(historyInterval.value);
+      historyIntervalLabel.textContent = `${historyMinutes}分`;
+      if (historyEnabled) startHistoryTimer();
+      setStatus(`履歴間隔: ${historyMinutes}分`);
     }
 
-    function switchPartnerLanguage() {
-      if (listening) stopListening('相手の言語を切り替えました');
-      partnerIndex = (partnerIndex + 1) % PARTNER_LANGUAGES.length;
-      hint = 'auto';
-      renderPartnerLanguage();
-      clearFeeds();
-      setStatus(`相手の言語: ${partner().name}`);
+    function startHistoryTimer() {
+      stopHistoryTimer();
+      historyTimer = setInterval(() => saveHistorySnapshot(false), historyMinutes * 60 * 1000);
     }
 
-    function renderPartnerLanguage() {
-      const lang = partner();
-      partnerButton.textContent = lang.button;
-      partnerName.textContent = lang.name;
-      jaMode.textContent = lang.jaMode;
-      partnerMode.textContent = lang.partnerMode;
-      manualText.placeholder = `日本語 / ${lang.name} を入れてEnter`;
-      feeds.ja.querySelector('.empty')?.replaceWith(emptyNode(`日本語で話すと、${lang.name}に変換します`));
-      feeds.partner.querySelector('.empty')?.replaceWith(emptyNode(lang.empty));
+    function stopHistoryTimer() {
+      if (historyTimer) clearInterval(historyTimer);
+      historyTimer = null;
     }
 
-    function emptyNode(text) {
-      const div = document.createElement('div');
-      div.className = 'empty';
-      div.textContent = text;
-      return div;
+    function saveHistorySnapshot(force) {
+      const newTurns = conversationTurns.slice(lastHistoryTurnIndex);
+      const turns = newTurns;
+
+      if (!turns.length) {
+        if (force || historyEnabled) setStatus('保存する会話がまだありません');
+        return;
+      }
+
+      const snapshot = {
+        at: Date.now(),
+        range: `${historyMinutes}分`,
+        turns
+      };
+      historySnapshots.unshift(snapshot);
+      historySnapshots = historySnapshots.slice(0, 50);
+      lastHistoryTurnIndex = conversationTurns.length;
+      saveHistoryToStorage();
+      renderHistory();
+      setStatus(`履歴を保存しました: ${formatTime(snapshot.at)}`);
     }
 
-    function partner() {
-      return PARTNER_LANGUAGES[partnerIndex];
+    function renderHistory() {
+      if (!historySnapshots.length) {
+        historyList.innerHTML = '<div class="history-empty">履歴をONにすると、指定した間隔で会話を残します</div>';
+        return;
+      }
+
+      historyList.innerHTML = historySnapshots.map((snapshot) => {
+        const lines = snapshot.turns.map((turn) => `
+          <p class="history-line">${escapeHtml(turn.direction)}: ${escapeHtml(turn.source)} / ${escapeHtml(turn.target)}</p>
+        `).join('');
+
+        return `
+          <section class="history-item">
+            <div class="history-time">${formatTime(snapshot.at)} / ${escapeHtml(snapshot.range)}</div>
+            ${lines}
+          </section>
+        `;
+      }).join('');
     }
 
-    function googleCode(lang) {
-      return langInfo(lang).google;
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem('kosokuTranslatorHistory');
+        historySnapshots = raw ? JSON.parse(raw) : [];
+      } catch {
+        historySnapshots = [];
+      }
     }
 
-    function displayLang(lang) {
-      return langInfo(lang).name;
+    function saveHistoryToStorage() {
+      try {
+        localStorage.setItem('kosokuTranslatorHistory', JSON.stringify(historySnapshots));
+      } catch {}
     }
 
-    function langInfo(lang) {
-      return LANGUAGE_BY_ID[lang] || partner();
+    function formatTime(value) {
+      const date = new Date(value);
+      return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     }
 
-    function feedForLang(lang) {
-      return lang === 'ja' ? feeds.ja : feeds.partner;
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
     }
 
-    function toggleLayout() {
-      document.getElementById('stage').classList.toggle('stack');
-      setStatus('レイアウトを切り替えました');
+    function direction() {
+      return DIRECTIONS[directionIndex];
+    }
+
+    function lang(id) {
+      return LANGS[id];
     }
 
     function setStatus(message) {

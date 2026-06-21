@@ -4,14 +4,13 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const required = [
   'SpeechRecognition',
   'translate.googleapis.com',
-  'detectLang',
-  'switchPartnerLanguage',
+  'switchDirection',
+  'toggleHistory',
+  'saveHistorySnapshot',
   'startBrowserRecognition',
   'startDeepgram',
   '日本語',
-  'English',
-  '中文',
-  '한국어'
+  'English'
 ];
 
 const missing = required.filter((item) => !html.includes(item));

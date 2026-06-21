@@ -55,9 +55,9 @@ module.exports = async (_req, res) => {
 
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
-      available: true,
-      mode: 'deepgram-direct',
-      key: apiKey,
+      available: false,
+      mode: 'browser',
+      message: 'Deepgram temporary key creation failed. Browser speech recognition will be used.',
       log
     });
   } catch (error) {

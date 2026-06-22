@@ -682,8 +682,10 @@
       loadHistory();
       renderDirection();
       renderHistory();
-      await detectDeepgram();
       setStatus(initialStatusText());
+      detectDeepgram().then(() => {
+        if (!listening) setStatus(initialStatusText());
+      });
       setTimeout(warmTranslateConnection, 250);
     }
 
@@ -951,6 +953,7 @@
         activeTurn = {
           startedAt,
           lastInterimText: '',
+          pendingInterimText: '',
           direction: { ...currentDirection },
           generation: streamGeneration,
           sourceEl: addBubble(sourceFeed, 'source', currentDirection.source),
@@ -960,9 +963,10 @@
       }
 
       updateBubble(activeTurn.sourceEl, text);
-      clearTimeout(interimTimer);
 
       if (isFinal) {
+        clearTimeout(interimTimer);
+        interimTimer = null;
         const targetEl = activeTurn.targetEl;
         const turnDirection = activeTurn.direction;
         const generation = activeTurn.generation;
@@ -975,20 +979,64 @@
       const turn = activeTurn;
       const turnDirection = activeTurn.direction;
       const generation = activeTurn.generation;
+      turn.pendingInterimText = text;
+      if (interimTimer) return;
+
       interimTimer = setTimeout(() => {
-        if (activeTurn !== turn || turn.lastInterimText === text) return;
-        if (!shouldTranslateInterim(text, turnDirection.source)) return;
-        turn.lastInterimText = text;
-        translateInto(text, targetEl, startedAt, false, turnDirection, generation);
-      }, 20);
+        interimTimer = null;
+        if (activeTurn !== turn) return;
+        const latestText = turn.pendingInterimText;
+        if (turn.lastInterimText === latestText) return;
+        if (!shouldTranslateInterim(latestText, turnDirection.source)) return;
+        turn.lastInterimText = latestText;
+        translateInto(latestText, targetEl, startedAt, false, turnDirection, generation);
+      }, interimTranslationDelay());
     }
 
-    async function translateInto(text, targetEl, startedAt, final, turnDirection, generation) {
+    function translateInto(text, targetEl, startedAt, final, turnDirection, generation) {
       if (!text.trim()) return;
 
       const currentDirection = turnDirection || direction();
       const state = ensureTargetRenderState(targetEl, generation);
       if (final) state.finalRequested = true;
+      queueTranslation(state, {
+        text: text.trim(),
+        targetEl,
+        startedAt,
+        final,
+        direction: currentDirection,
+        generation
+      });
+    }
+
+    function queueTranslation(state, job) {
+      const pending = state.pendingTranslation;
+      if (!pending || job.final || !pending.final || job.text.length >= pending.text.length) {
+        state.pendingTranslation = job;
+      }
+      if (!state.translating) drainTranslationQueue(job.targetEl);
+    }
+
+    async function drainTranslationQueue(targetEl) {
+      const state = targetRenderState.get(targetEl);
+      if (!state || state.translating || !state.pendingTranslation) return;
+
+      const job = state.pendingTranslation;
+      state.pendingTranslation = null;
+      state.translating = true;
+
+      try {
+        await runTranslationJob(job);
+      } finally {
+        const latestState = targetRenderState.get(targetEl);
+        if (!latestState) return;
+        latestState.translating = false;
+        if (latestState.pendingTranslation) drainTranslationQueue(targetEl);
+      }
+    }
+
+    async function runTranslationJob(job) {
+      const { text, targetEl, startedAt, final, direction: currentDirection, generation } = job;
 
       try {
         const translated = await translateText(text, currentDirection.source, currentDirection.target);
@@ -1025,9 +1073,13 @@
     function shouldTranslateInterim(text, sourceLang) {
       const normalized = text.trim();
       if (!normalized) return false;
-      if (sourceLang === 'ja') return [...normalized].length >= 2;
+      if (sourceLang === 'ja') return [...normalized].length >= 3;
       const words = normalized.split(/\s+/).filter(Boolean);
       return words.length >= 2 || normalized.length >= 5;
+    }
+
+    function interimTranslationDelay() {
+      return mobileQuery.matches ? 70 : 25;
     }
 
     async function translateText(text, sourceLang, targetLang, signal) {
@@ -1260,7 +1312,9 @@
         generation,
         renderedSourceLength: 0,
         finalRequested: false,
-        finalRendered: false
+        finalRendered: false,
+        translating: false,
+        pendingTranslation: null
       });
     }
 

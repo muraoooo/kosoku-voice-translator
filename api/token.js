@@ -37,45 +37,6 @@ module.exports = async (_req, res) => {
       return;
     }
 
-    const projectsRes = await fetch('https://api.deepgram.com/v1/projects', {
-      headers: { Authorization: `Token ${apiKey}` }
-    });
-    log.push(`projects:${projectsRes.status}`);
-
-    if (projectsRes.ok) {
-      const { projects } = await projectsRes.json();
-      const projectId = projects?.[0]?.project_id;
-
-      if (projectId) {
-        const keyRes = await fetch(`https://api.deepgram.com/v1/projects/${projectId}/keys`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Token ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            comment: 'kosoku voice translator browser key',
-            scopes: ['usage:write'],
-            time_to_live_in_seconds: 60
-          })
-        });
-        log.push(`temp-key:${keyRes.status}`);
-
-        if (keyRes.ok) {
-          const data = await keyRes.json();
-          res.setHeader('Cache-Control', 'no-store');
-          res.status(200).json({
-            available: true,
-            mode: 'deepgram-temp',
-            key: data.key,
-            expiresIn: 60,
-            log
-          });
-          return;
-        }
-      }
-    }
-
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
       available: false,

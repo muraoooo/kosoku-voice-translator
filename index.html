@@ -16,6 +16,8 @@
       --line: #ddd8cc;
       --ja: #fff8df;
       --en: #eaf7f5;
+      --zh-cn: #f0f8e7;
+      --zh-tw: #eef3ff;
       --panel: #fbfaf6;
       --accent: #e24b35;
       --accent-dark: #aa2f22;
@@ -102,6 +104,8 @@
 
     .pane.ja { background: var(--ja); }
     .pane.en { background: var(--en); }
+    .pane.zh-cn { background: var(--zh-cn); }
+    .pane.zh-tw { background: var(--zh-tw); }
 
     .pane-head {
       min-height: var(--pane-head-min);
@@ -304,6 +308,12 @@
       color: #29251f;
     }
 
+    .direction-select {
+      max-width: 190px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .scale-controls {
       height: var(--control-height);
       min-width: 120px;
@@ -486,7 +496,8 @@
         border-radius: 6px;
       }
 
-      #directionButton {
+      #directionSelect {
+        max-width: none;
         font-size: var(--button-font);
       }
 
@@ -576,7 +587,7 @@
     <div class="topbar">
       <button class="main-button" id="startButton" type="button" onclick="toggleListening()">開始</button>
       <button class="select-button" id="engineButton" type="button" onclick="switchEngine()" title="音声認識エンジン">標準</button>
-      <button class="select-button" id="directionButton" type="button" onclick="switchDirection()" title="翻訳方向">日本語→英語</button>
+      <select class="select-button direction-select" id="directionSelect" onchange="selectDirection()" title="翻訳方向"></select>
       <button class="select-button history-button" id="historyButton" type="button" onclick="toggleHistory()" title="履歴">履歴</button>
       <div class="scale-controls" aria-label="表示サイズ">
         <button class="scale-button" type="button" onclick="changeDisplayScale(-5)" title="表示を小さく">−</button>
@@ -621,12 +632,44 @@
         inputPlaceholder: 'Englishを入れてEnter',
         sourceEmpty: 'Speak English',
         targetEmpty: '英語に翻訳します'
+      },
+      zhCN: {
+        id: 'zhCN',
+        google: 'zh-CN',
+        speech: 'zh-CN',
+        deepgram: 'zh-CN',
+        name: '简体中文',
+        pane: 'zh-cn',
+        inputPlaceholder: '简体中文を入れてEnter',
+        sourceEmpty: '请用简体中文说话',
+        targetEmpty: '简体中文に翻訳します'
+      },
+      zhTW: {
+        id: 'zhTW',
+        google: 'zh-TW',
+        speech: 'zh-TW',
+        deepgram: 'zh-TW',
+        name: '繁體中文',
+        pane: 'zh-tw',
+        inputPlaceholder: '繁體中文を入れてEnter',
+        sourceEmpty: '請用繁體中文說話',
+        targetEmpty: '繁體中文に翻訳します'
       }
     };
 
     const DIRECTIONS = [
       { id: 'ja-en', source: 'ja', target: 'en', label: '日本語→英語' },
-      { id: 'en-ja', source: 'en', target: 'ja', label: '英語→日本語' }
+      { id: 'en-ja', source: 'en', target: 'ja', label: '英語→日本語' },
+      { id: 'ja-zhCN', source: 'ja', target: 'zhCN', label: '日本語→简体中文' },
+      { id: 'zhCN-ja', source: 'zhCN', target: 'ja', label: '简体中文→日本語' },
+      { id: 'ja-zhTW', source: 'ja', target: 'zhTW', label: '日本語→繁體中文' },
+      { id: 'zhTW-ja', source: 'zhTW', target: 'ja', label: '繁體中文→日本語' },
+      { id: 'en-zhCN', source: 'en', target: 'zhCN', label: '英語→简体中文' },
+      { id: 'zhCN-en', source: 'zhCN', target: 'en', label: '简体中文→英語' },
+      { id: 'en-zhTW', source: 'en', target: 'zhTW', label: '英語→繁體中文' },
+      { id: 'zhTW-en', source: 'zhTW', target: 'en', label: '繁體中文→英語' },
+      { id: 'zhCN-zhTW', source: 'zhCN', target: 'zhTW', label: '简体中文→繁體中文' },
+      { id: 'zhTW-zhCN', source: 'zhTW', target: 'zhCN', label: '繁體中文→简体中文' }
     ];
 
     const workspace = document.getElementById('workspace');
@@ -641,7 +684,7 @@
     const statusEl = document.getElementById('status');
     const startButton = document.getElementById('startButton');
     const engineButton = document.getElementById('engineButton');
-    const directionButton = document.getElementById('directionButton');
+    const directionSelect = document.getElementById('directionSelect');
     const historyButton = document.getElementById('historyButton');
     const historyInterval = document.getElementById('historyInterval');
     const historyIntervalLabel = document.getElementById('historyIntervalLabel');
@@ -679,6 +722,7 @@
       loadDisplayScale();
       bindManualInput();
       bindDisplayScaleWatcher();
+      renderDirectionOptions();
       loadHistory();
       renderDirection();
       renderHistory();
@@ -1073,7 +1117,7 @@
     function shouldTranslateInterim(text, sourceLang) {
       const normalized = text.trim();
       if (!normalized) return false;
-      if (sourceLang === 'ja') return [...normalized].length >= 3;
+      if (['ja', 'zhCN', 'zhTW'].includes(sourceLang)) return [...normalized].length >= 3;
       const words = normalized.split(/\s+/).filter(Boolean);
       return words.length >= 2 || normalized.length >= 5;
     }
@@ -1126,6 +1170,12 @@
       } else if (mobileQuery.addListener) {
         mobileQuery.addListener(refresh);
       }
+    }
+
+    function renderDirectionOptions() {
+      directionSelect.innerHTML = DIRECTIONS.map((item) => (
+        `<option value="${item.id}">${item.label}</option>`
+      )).join('');
     }
 
     function loadDisplayScale() {
@@ -1242,12 +1292,23 @@
       setStatus(`翻訳方向: ${direction().label}`);
     }
 
+    function selectDirection() {
+      const nextIndex = DIRECTIONS.findIndex((item) => item.id === directionSelect.value);
+      if (nextIndex < 0 || nextIndex === directionIndex) return;
+      if (listening) stopListening('翻訳方向を切り替えました');
+      directionIndex = nextIndex;
+      clearActiveTurn(false);
+      renderDirection();
+      realignFeedsForDirection();
+      setStatus(`翻訳方向: ${direction().label}`);
+    }
+
     function renderDirection() {
       const current = direction();
       const source = lang(current.source);
       const target = lang(current.target);
 
-      directionButton.textContent = current.label;
+      directionSelect.value = current.id;
       sourceName.textContent = source.name;
       targetName.textContent = target.name;
       sourceMode.textContent = '話す言語';
@@ -1268,13 +1329,14 @@
 
     function realignFeedsForDirection() {
       const current = direction();
-      const bubbles = [...sourceFeed.querySelectorAll('.bubble'), ...targetFeed.querySelectorAll('.bubble')];
+      const bubbles = [...sourceFeed.querySelectorAll('.bubble'), ...targetFeed.querySelectorAll('.bubble')]
+        .map((bubble) => ({ bubble, wasSource: bubble.parentElement === sourceFeed }));
       sourceFeed.innerHTML = '';
       targetFeed.innerHTML = '';
 
-      bubbles.forEach((bubble) => {
-        const languageId = bubble.lang === 'ja' ? 'ja' : 'en';
-        const feed = languageId === current.source ? sourceFeed : targetFeed;
+      bubbles.forEach(({ bubble, wasSource }) => {
+        const languageId = bubble.dataset.languageId || languageIdFromHtmlLang(bubble.lang);
+        const feed = languageId === current.source ? sourceFeed : languageId === current.target ? targetFeed : wasSource ? sourceFeed : targetFeed;
         feed.appendChild(bubble);
       });
 
@@ -1295,7 +1357,8 @@
       removeEmpty(feed);
       const bubble = document.createElement('article');
       bubble.className = `bubble ${stateClass || ''}`;
-      bubble.lang = languageId === 'ja' ? 'ja' : 'en';
+      bubble.lang = htmlLangFor(languageId);
+      bubble.dataset.languageId = languageId;
       bubble.innerHTML = '<div class="bubble-text"></div>';
       feed.appendChild(bubble);
       scrollBottom(feed);
@@ -1460,6 +1523,7 @@
       if (turn.japanese) return turn.japanese;
       if (turn.sourceLang === 'ja') return turn.source || '';
       if (turn.targetLang === 'ja') return turn.target || '';
+      if (turn.sourceLang || turn.targetLang) return '';
       if (turn.direction === '英語→日本語') return turn.target || '';
       if (turn.direction === '日本語→英語') return turn.source || '';
       return turn.target || turn.source || '';
@@ -1502,13 +1566,29 @@
       return LANGS[id];
     }
 
+    function htmlLangFor(languageId) {
+      return lang(languageId)?.google || 'en';
+    }
+
+    function languageIdFromHtmlLang(htmlLang) {
+      const normalized = String(htmlLang || '').toLowerCase();
+      return Object.keys(LANGS).find((id) => lang(id).google.toLowerCase() === normalized) || 'en';
+    }
+
+    function sampleTextFor(languageId) {
+      if (languageId === 'ja') return 'はい';
+      if (languageId === 'zhCN') return '你好';
+      if (languageId === 'zhTW') return '你好';
+      return 'yes';
+    }
+
     function clampNumber(value, min, max) {
       return Math.min(max, Math.max(min, value));
     }
 
     function warmTranslateConnection() {
       const current = direction();
-      translateText(current.source === 'ja' ? 'はい' : 'yes', current.source, current.target).catch(() => {});
+      translateText(sampleTextFor(current.source), current.source, current.target).catch(() => {});
     }
 
     function setStatus(message) {

@@ -10,6 +10,7 @@ const required = [
   'speechUnsupportedMessage',
   'isIOSDevice',
   'switchDirection',
+  'selectDirection',
   'toggleHistory',
   'saveHistorySnapshot',
   'changeDisplayScale',
@@ -17,6 +18,10 @@ const required = [
   'startBrowserRecognition',
   'startDeepgram',
   'auth/grant',
+  'zh-CN',
+  'zh-TW',
+  '简体中文',
+  '繁體中文',
   '日本語',
   'English'
 ];
